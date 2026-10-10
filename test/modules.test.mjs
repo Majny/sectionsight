@@ -187,7 +187,7 @@ test('err samples in every store: files, Mongo, SQLite; Analytics Engine keeps t
   const second = { p: '/pricing', e: 'err', d: { m: 'Error: boom 2', f: 'app.js', l: 5, c: 9, s: '' } }; // same fingerprint once scrubbed
   const fp = errFingerprint('Error: boom 0', 'app.js', 5);
   const want = { m: 'Error: boom 0', f: 'app.js', l: 5, c: 2, path: '/' };
-  const dir = await mkdtemp(path.join(tmpdir(), 'pfa-errs-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'sectionsight-errs-'));
   const mongo = fakeMongo();
   const sqlite = await sqliteQuery();
   const stores = { files: fileStore(dir), mongo: mongoStore(mongo.db) };

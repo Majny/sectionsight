@@ -1,6 +1,6 @@
 /**
  * mongoStore against a real mongod (mongodb-memory-server), when one is at
- * hand: PFA_MONGO_MODULES=<a directory whose node_modules has mongodb and
+ * hand: SECTIONSIGHT_MONGO_MODULES=<a directory whose node_modules has mongodb and
  * mongodb-memory-server-core>. Skipped otherwise; the stand-in in fakes.mjs
  * covers the logic in every run.
  */
@@ -13,7 +13,7 @@ import { enforceRetention, retentionStatus } from '../skills/sectionsight/assets
 import { exportVisit, deleteVisit } from '../skills/sectionsight/assets/dsar.mjs';
 import { checkHealth } from '../skills/sectionsight/assets/health.mjs';
 
-const dir = process.env.PFA_MONGO_MODULES;
+const dir = process.env.SECTIONSIGHT_MONGO_MODULES;
 let mods = null;
 if (dir) {
   const require = createRequire(path.join(dir, 'noop.js'));
@@ -22,10 +22,10 @@ if (dir) {
   } catch {}
 }
 
-test('mongoStore on a real mongod: totals, health per instance, retention, a visitor\'s deletion', { skip: mods ? false : 'set PFA_MONGO_MODULES to run it', timeout: 120_000 }, async () => {
+test('mongoStore on a real mongod: totals, health per instance, retention, a visitor\'s deletion', { skip: mods ? false : 'set SECTIONSIGHT_MONGO_MODULES to run it', timeout: 120_000 }, async () => {
   const { MongoMemoryServer } = mods.mms;
   const { MongoClient } = mods.mongodb;
-  const srv = await MongoMemoryServer.create({ binary: { version: process.env.PFA_MONGO_VERSION ?? '7.0.14' } });
+  const srv = await MongoMemoryServer.create({ binary: { version: process.env.SECTIONSIGHT_MONGO_VERSION ?? '7.0.14' } });
   const client = await MongoClient.connect(srv.getUri(), { serverSelectionTimeoutMS: 2000 });
   try {
     const db = client.db('t');

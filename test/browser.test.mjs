@@ -16,7 +16,7 @@ import { planVisits } from '../skills/sectionsight/assets/visits.mjs';
 const VERIFY = new URL('../skills/sectionsight/scripts/verify.mjs', import.meta.url).pathname;
 
 function verify(base, extra) {
-  const report = path.join(tmpdir(), `pfa-${process.pid}-${Math.round(performance.now())}.json`);
+  const report = path.join(tmpdir(), `sectionsight-${process.pid}-${Math.round(performance.now())}.json`);
   return new Promise((resolve) => {
     const p = spawn(process.execPath, [VERIFY, '--url', base, '--report', report, ...extra], { cwd: new URL('..', import.meta.url).pathname });
     let out = '';
@@ -530,7 +530,7 @@ test('verify output: page text cannot issue workflow commands; scoped X-Robots-T
 
 test('verify config: "expect": false is a config error, and --preview writes nothing', { timeout: 180_000 }, async () => {
   const { writeFile, mkdtemp } = await import('node:fs/promises');
-  const dir = await mkdtemp(path.join(tmpdir(), 'pfa-cfg-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'sectionsight-cfg-'));
   await writeFile(path.join(dir, 'bad.json'), JSON.stringify({ expect: false }));
   const bad = await verify('http://127.0.0.1:9', ['--config', path.join(dir, 'bad.json')]);
   assert.equal(bad.code, 2, bad.out);
@@ -556,7 +556,7 @@ test('errors (data-errors="on"): verify --errors passes; the error reaches the t
     const page = [...f.store().daily.values()].find((d) => d.path === '/');
     assert.ok(page?.err && Object.values(page.err).some((n) => n >= 2), 'counted before and after consent: ' + JSON.stringify(page));
     const samples = [...f.store().errs.values()].flatMap((d) => Object.values(d));
-    assert.ok(samples.some((x) => x.f === '(inline)' && /^Error: pfa-check failed for <email> with <id> at <url> and <email> at <url>$/.test(x.m)), JSON.stringify(samples));
+    assert.ok(samples.some((x) => x.f === '(inline)' && /^Error: sectionsight-check failed for <email> with <id> at <url> and <email> at <url>$/.test(x.m)), JSON.stringify(samples));
     assert.ok(samples.some((x) => /^Error: rejected for <email> <id>$/.test(x.m)), 'the unhandled rejection too: ' + JSON.stringify(samples));
     const all = JSON.stringify([...f.store().daily.values(), samples]);
     assert.ok(!/probe|prb7f3/.test(all), all);

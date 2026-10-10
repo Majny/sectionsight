@@ -223,7 +223,7 @@ const NOINDEX = csv(args.noindex);
 const SITEMAP = !args.sitemap || args.sitemap === 'no' ? '' : args.sitemap;
 const SITEMAP_HOST = args['sitemap-host'] || new URL(BASE).host;
 // A path no site has, visited with the probe query: the 404 page's report.
-const MISSING = '/pfa-check-missing-page';
+const MISSING = '/sectionsight-check-missing-page';
 
 /**
  * robots.txt, as far as these checks read it: the rules of the groups for
@@ -396,9 +396,10 @@ function record(context, log) {
   const said = new Map(); // url → bodies reported on the console, oldest first
   context.on('console', (msg) => {
     const text = msg.text();
-    if (!text.startsWith('__pfa_body__ ')) return;
+    const MARK = '__sectionsight_body__ ';
+    if (!text.startsWith(MARK)) return;
     try {
-      const { url, body } = JSON.parse(text.slice(13));
+      const { url, body } = JSON.parse(text.slice(MARK.length));
       if (!said.has(url)) said.set(url, []);
       said.get(url).push(body);
     } catch {}
@@ -472,7 +473,7 @@ async function newContext(browser, { gpc = false, storageState, silent = false, 
       if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) { try { return new TextDecoder().decode(data); } catch { return ''; } }
       return '';
     };
-    const say = (url, body) => { try { console.debug('__pfa_body__ ' + JSON.stringify({ url: String(new URL(url, location.href)), body })); } catch {} };
+    const say = (url, body) => { try { console.debug('__sectionsight_body__ ' + JSON.stringify({ url: String(new URL(url, location.href)), body })); } catch {} };
     const origBeacon = Navigator.prototype.sendBeacon;
     Navigator.prototype.sendBeacon = function (url, data) { say(url, bodyText(data)); return origBeacon.call(this, url, data); };
     const origFetch = window.fetch;
@@ -868,7 +869,7 @@ try {
       record(context, log);
       // After 1.5 s, so k.js (often deferred) listens by then. The message also
       // holds the e-mail percent-escaped and a relative query.
-      const script = `<script>setTimeout(function () { Promise.reject(new Error("rejected for ${PROBE_EMAIL} ${PROBE_TOKEN}")); throw new Error("pfa-check failed for ${PROBE_EMAIL} with ${PROBE_TOKEN} at " + location.href + " and ${encodeURIComponent(PROBE_EMAIL)} at /account?e=${PROBE_TOKEN}"); }, 1500);</script>`;
+      const script = `<script>setTimeout(function () { Promise.reject(new Error("rejected for ${PROBE_EMAIL} ${PROBE_TOKEN}")); throw new Error("sectionsight-check failed for ${PROBE_EMAIL} with ${PROBE_TOKEN} at " + location.href + " and ${encodeURIComponent(PROBE_EMAIL)} at /account?e=${PROBE_TOKEN}"); }, 1500);</script>`;
       const target = BASE + PAGES[0] + PROBE_QUERY;
       await context.route((u) => u.toString() === target, async (route) => {
         try {

@@ -218,7 +218,7 @@ change the project's lockfile, and the report lands in the current directory.
 `--resolve example.com` checks the local server under its production name.
 
 ```bash
-mkdir -p /tmp/pfa-verify && cd /tmp/pfa-verify && npm i playwright && npx playwright install chromium
+mkdir -p /tmp/sectionsight-verify && cd /tmp/sectionsight-verify && npm i playwright && npx playwright install chromium
 node <this skill's directory>/scripts/verify.mjs --url http://example.com:3000 --resolve example.com \
   --pages /,/pricing --private /account/x --mode consent --posthog /ingest
 ```

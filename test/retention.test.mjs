@@ -23,7 +23,7 @@ const sqlite = await sqliteQuery();
 async function stores() {
   const out = [
     ['memory', memoryStore()],
-    ['files', fileStore(await mkdtemp(tmpdir() + '/pfa-ret-'))],
+    ['files', fileStore(await mkdtemp(tmpdir() + '/sectionsight-ret-'))],
     ['mongo', mongoStore(fakeMongo().db)],
   ];
   if (sqlite) {
@@ -144,7 +144,7 @@ test('retention: the cutoff is a day in the collector\'s time zone, around midni
     assert.equal(r.totalsBefore, '2024-10-09', timeZone);
     assert.deepEqual([...s.daily.values()].map((d) => d.day), keep, timeZone);
     assert.equal((await retentionStatus(s, { totalsDays: 730, now: new Date(iso), timeZone })).totalsOk, true);
-    const dir = await mkdtemp(tmpdir() + '/pfa-tz-');
+    const dir = await mkdtemp(tmpdir() + '/sectionsight-tz-');
     const fs = fileStore(dir, { dailyDays: 730, timeZone });
     for (const day of ['2024-10-08', '2024-10-09']) await fs.write({ incs: [{ _id: `${day} *`, day, path: '*', inc: { visits: 1 } }] });
     await fs.purge(new Date(iso));

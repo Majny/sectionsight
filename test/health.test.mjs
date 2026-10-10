@@ -187,7 +187,7 @@ const tick = () => new Promise((r) => setTimeout(r, 20));
 test('health: a successful write is recorded in memory and in the store, off the request', async () => {
   const { mkdtemp } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');
-  for (const make of [() => memoryStore(), async () => fileStore(await mkdtemp(tmpdir() + '/pfa-h-')), () => mongoStore(fakeMongo().db)]) {
+  for (const make of [() => memoryStore(), async () => fileStore(await mkdtemp(tmpdir() + '/sectionsight-h-')), () => mongoStore(fakeMongo().db)]) {
     const store = await make();
     const collect = createCollector({ hosts: ['example.com'], store });
     assert.equal((await collect(report())).status, 204);
@@ -320,7 +320,7 @@ test('several instances: each keeps its record; failures of an instance gone for
     { instance: 'c', savedAt: '2026-10-09T06:00:00Z', lastWrite: '2026-10-09T06:00:00.000Z', writeErrors: 9, lastError: 'Old', delDropped: 5 },
   ], now);
   assert.deepEqual([m.lastWrite, m.writeErrors, m.lastError, m.delDropped, m.instances], ['2026-10-09T14:29:00.000Z', 4, 'MongoNetworkError', 1, 2]);
-  for (const store of [memoryStore(), mongoStore(fakeMongo().db), fileStore(await (await import('node:fs/promises')).mkdtemp((await import('node:os')).tmpdir() + '/pfa-mi-'))]) {
+  for (const store of [memoryStore(), mongoStore(fakeMongo().db), fileStore(await (await import('node:fs/promises')).mkdtemp((await import('node:os')).tmpdir() + '/sectionsight-mi-'))]) {
     await store.saveHealth({ instance: 'a', savedAt: new Date().toISOString(), lastWrite: '2026-10-09T14:29:00.000Z', writeErrors: 0 });
     await store.saveHealth({ instance: 'b', savedAt: new Date().toISOString(), lastWrite: '2026-10-09T14:00:00.000Z', writeErrors: 2, lastError: 'X' });
     const h = await store.health();

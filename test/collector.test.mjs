@@ -214,7 +214,7 @@ test('section keys and anchors that look personal are dropped', () => {
 test('fileStore keeps totals and rows in files and purges by age', async () => {
   const { mkdtemp, writeFile, mkdir, readdir } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');
-  const dir = await mkdtemp(tmpdir() + '/pfa-fs-');
+  const dir = await mkdtemp(tmpdir() + '/sectionsight-fs-');
   const store = fileStore(dir);
   const collect = createCollector({ hosts: ['example.com'], store, timeZone: 'UTC' });
   await Promise.all([collect(req({ p: '/', en: 1, r: '', u: {}, l: 'en' })), collect(req({ p: '/', e: 'read', d: { s: 'intro' }, vi: '0123456789abcdef', v: 'fedcba9876543210' }))]);
@@ -342,7 +342,7 @@ test('nf: at most 100 distinct 404 paths a day, then nf.(other)', async () => {
 test('nf counters reach every store the same way: files, Analytics Engine, Mongo', async () => {
   const { mkdtemp } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');
-  const fs = fileStore(await mkdtemp(tmpdir() + '/pfa-nf-'));
+  const fs = fileStore(await mkdtemp(tmpdir() + '/sectionsight-nf-'));
   await createCollector({ hosts: ['example.com'], store: fs, timeZone: 'UTC' })(req({ p: '/old.html', e: 'nf', d: { r: 'internal' } }));
   const day = new Date().toISOString().slice(0, 10);
   const doc = (await fs.daily(day))[`${day} *`];

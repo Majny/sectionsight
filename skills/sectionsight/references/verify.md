@@ -10,7 +10,7 @@ writes a JSON report (`--json`, default `privacy-check.json`).
 ```bash
 # once, in a scratch directory (not the project: it would change the lockfile,
 # and the report is written to the current directory)
-mkdir -p /tmp/pfa-verify && cd /tmp/pfa-verify && npm i playwright && npx playwright install chromium
+mkdir -p /tmp/sectionsight-verify && cd /tmp/sectionsight-verify && npm i playwright && npx playwright install chromium
 node <this skill's directory>/scripts/verify.mjs \
   --url http://192.168.1.20:3000 \      # the site; see "Which host" below
   --pages /,/pricing,/blog/some-post \  # public pages that have sections
@@ -142,7 +142,7 @@ visits are answered in the browser, so they never store a report):
   `--url` host, or `--sitemap-host www.example.com` when the sitemap names
   production while you check a preview: then the `Sitemap:` URL and the
   sampled URLs are fetched from `--url` at the same path.
-- **The 404 page** (always): verify opens `/pfa-check-missing-page` with
+- **The 404 page** (always): verify opens `/sectionsight-check-missing-page` with
   the probe query. If the page carries k.js's `data-k404` marker, an `nf`
   report must arrive with exactly that path, no query and no probe;
   without the marker it is a SKIP with a hint (mark the template,

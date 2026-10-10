@@ -198,7 +198,7 @@ test('campaign allowlist: only listed utm_campaign values reach the totals, the 
 
 test('markDeploy: 7 hex characters and the minute in the day\'s totals, capped, once per sha, in every store', async () => {
   const sqlite = await sqliteQuery();
-  const dir = await mkdtemp(path.join(tmpdir(), 'pfa-deploy-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'sectionsight-deploy-'));
   const stores = [['memory', memoryStore()], ['files', fileStore(dir)], ['mongo', mongoStore(fakeMongo().db)]];
   if (sqlite) {
     const s = sqlStore({ dialect: 'sqlite', query: sqlite.query });

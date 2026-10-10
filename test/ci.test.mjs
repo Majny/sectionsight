@@ -123,7 +123,7 @@ test('deploy-marker.yml parses, read-only token, pinned actions, a step that can
 });
 
 test('the example config is valid JSON with known keys only', async () => {
-  const cwd = await mkdtemp(path.join(tmpdir(), 'pfa-ci-'));
+  const cwd = await mkdtemp(path.join(tmpdir(), 'sectionsight-ci-'));
   // An unknown key stops verify before it starts a browser (exit 2).
   const bad = path.join(cwd, 'bad.json');
   await (await import('node:fs/promises')).writeFile(bad, JSON.stringify({ pages: ['/'], pagez: ['/'] }));
@@ -136,7 +136,7 @@ test('the example config is valid JSON with known keys only', async () => {
 
 test("the workflow's nightly command line fails a careless page, with a FAIL in privacy-check.json", { timeout: 240_000 }, async () => {
   const f = await startFixture({ ids: 'consent', bad: true });
-  const cwd = await mkdtemp(path.join(tmpdir(), 'pfa-ci-'));
+  const cwd = await mkdtemp(path.join(tmpdir(), 'sectionsight-ci-'));
   try {
     const yaml = await readFile(path.join(CI, 'privacy-check.yml'), 'utf8');
     const argv = commandOf(yaml, 'production', { ...ENV, PRODUCTION_URL: f.base });
@@ -155,7 +155,7 @@ test("the workflow's nightly command line fails a careless page, with a FAIL in 
 
 test("the workflow's pull-request command line passes a good site and writes the job summary", { timeout: 240_000 }, async () => {
   const f = await startFixture({ ids: 'consent' });
-  const cwd = await mkdtemp(path.join(tmpdir(), 'pfa-ci-'));
+  const cwd = await mkdtemp(path.join(tmpdir(), 'sectionsight-ci-'));
   const summary = path.join(cwd, 'summary.md');
   try {
     const yaml = await readFile(path.join(CI, 'privacy-check.yml'), 'utf8');
@@ -181,7 +181,7 @@ test("the workflow's pull-request command line passes a good site and writes the
 
 test('--fail-on-skip turns a SKIP into exit 1; --json names the results file', { timeout: 120_000 }, async () => {
   const f = await startFixture({ ids: 'never' });
-  const cwd = await mkdtemp(path.join(tmpdir(), 'pfa-ci-'));
+  const cwd = await mkdtemp(path.join(tmpdir(), 'sectionsight-ci-'));
   try {
     // No banner and no private paths: those checks are skipped, nothing fails.
     const base = [path.join(ROOT, ENV.VERIFY_SCRIPT), '--url', f.base, '--pages', '/', '--mode', 'never', '--banner', 'no', '--settle', '0', '--path-probe', 'no', '--json', 'out.json'];

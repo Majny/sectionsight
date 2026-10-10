@@ -3,6 +3,8 @@
 An agent skill that sets up website analytics that respect visitors, and
 proves it in a real browser.
 
+![The browser check, verify.mjs, passing 25 checks against the test fixture](docs/verify.png)
+
 Ask your coding agent to *"add privacy-first analytics to this site"*. It
 then does this:
 
@@ -156,11 +158,15 @@ You can also use the assets without an agent; each file explains itself.
 
 ## Development
 
+The repo has no lockfile on purpose: Claude Code installs a plugin's npm
+dependencies when it finds one, and the skill itself needs none. The dev
+dependencies are pinned to exact versions in `package.json`.
+
 ```bash
 npm install && npx playwright install chromium
-npm test   # 157 tests (the real-Mongo one skips without PFA_MONGO_MODULES): unit tests, and browser tests against test/fixture with real posthog-js 1.438.3
+npm test   # 157 tests (the real-Mongo one skips without SECTIONSIGHT_MONGO_MODULES): unit tests, and browser tests against test/fixture with real posthog-js 1.438.3
 # mongoStore against a real mongod too (mongodb-memory-server, installed elsewhere):
-PFA_MONGO_MODULES=/path/with/node_modules node --test test/mongo.test.mjs
+SECTIONSIGHT_MONGO_MODULES=/path/with/node_modules node --test test/mongo.test.mjs
 ```
 
 The browser tests run `verify.mjs` against a fixture site, under a
