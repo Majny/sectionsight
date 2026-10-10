@@ -18,7 +18,8 @@
  * LAST X-Forwarded-For entry (the first is whatever the client sent), and
  * never X-Real-IP, which proxies often pass through from the client.
  * CF-Connecting-IP is trustworthy only when every request comes through
- * Cloudflare.
+ * Cloudflare. `upstream: { api, assets }` replaces PostHog's hosts (a
+ * self-hosted PostHog, or a local stand-in for staging and tests).
  * Runs on Node 18+ (AbortSignal.any is used where it exists).
  */
 export function defaultClientIp(request) {
@@ -43,10 +44,10 @@ function abortSignal(signal, timeoutMs) {
   return c.signal;
 }
 
-export function createPostHogProxy({ region = 'eu', prefix = '/ingest', timeoutMs = 10_000, clientIp = defaultClientIp } = {}) {
-  const API = `https://${region}.i.posthog.com`;
+export function createPostHogProxy({ region = 'eu', prefix = '/ingest', timeoutMs = 10_000, clientIp = defaultClientIp, upstream: hosts = {} } = {}) {
+  const API = String(hosts.api ?? `https://${region}.i.posthog.com`).replace(/\/+$/, '');
   // Scripts (/static) and remote config (/array) come from the assets CDN.
-  const ASSETS = `https://${region}-assets.i.posthog.com`;
+  const ASSETS = String(hosts.assets ?? hosts.api ?? `https://${region}-assets.i.posthog.com`).replace(/\/+$/, '');
   // No Referer: on a same-origin request it is the full page URL, query included.
   const REQUEST_HEADERS = ['content-type', 'accept', 'accept-language', 'user-agent', 'origin'];
   const CONDITIONAL_HEADERS = ['if-none-match', 'if-modified-since'];

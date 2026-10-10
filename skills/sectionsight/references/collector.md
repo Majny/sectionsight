@@ -120,6 +120,7 @@ visits, hist.<bucket>    visit length: buckets start at 0,5,10,20,30,60,120,300,
 src.<source>, geo.<cc>, dev.<class>, lang.<code>
 hour.<HH>                visits that started in that hour (owner's time zone; hourly: false turns it off)
 goal.<name>
+form.<name>              submits of a data-kform form (k.js), next to its goal
 goalsrc.<name>.<class>   of those, by the class of the visit's entry: google, bing, search, ai,
                          social, newsletter, direct, other (never a referrer; see tracker.md)
 campaign.<name>          visits from an allowlisted utm_campaign (option campaigns), campaign.(other) the rest

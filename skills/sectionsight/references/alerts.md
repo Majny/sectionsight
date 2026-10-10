@@ -70,7 +70,9 @@ weeks count as zero, so a new install stays quiet until it has history.
 |---|---|---|
 | **(a) silence** | no visit stored in the last `hours` hours (and the current one), while the same hours usually have at least `minExpected` | 3 h, 5 |
 | **(b) low** | visits so far today (complete hours) under `percent`% of the usual for those hours, and the usual is at least `minBaseline` | 40%, 20 |
+| **(b2) high** | visits so far today at least `factor`× the usual for those hours and at least `min` (an info line: a big link, or bots inflating the totals) | 3×, 30 |
 | **(c) goal** | a goal at 0 for `days` full days while its median over the 28 days before is at least `minPerDay` | 3 days, 1/day |
+| **(c2) forms** | a `data-kform` form submitted at least `minSubmits` times today and the `days`-1 days before, while the goal of the same name stayed at 0, once that goal has been reached in the 28 days before. It works on a small site too: it needs no baseline of daily goals | 2 days, 3 |
 | **(d) writes** | `writeErrors > 0`; or reports arrive with no write for `staleMinutes`; or the last write is older than `staleMinutes` while the same hours of earlier weeks brought at least `silence.minExpected` visits (this works from a separate job, after the collector instance is gone, and on Analytics Engine; it needs the hourly counts) | 30 min |
 | **deletions** | a visitor's deletion request was dropped in the last `withinHours` | 24 h |
 | **(e) notFound** | 404s today (`nf.*`) at least `factor`× a usual whole day and at least `min` | 3×, 20 |

@@ -55,7 +55,7 @@ const LEAK_IN_DOM = `<script>document.addEventListener('DOMContentLoaded', () =>
 // consentCounts; leakyConsent: those reports with ids (a negative control for
 // verify --consent-counts). stripUtm: data-strip-utm="on". campaigns: the
 // collector's campaign allowlist.
-export async function startFixture({ port = 0, ids = 'consent', host = '127.0.0.1', bad = false, visitStore = '', leakPrivate = false, unsafeBeforeSend = false, leakInDom = false, rawPaths = false, consentDefer = false, extra = '', brokenSeo = false, leakyDelete = '', seoQuirks = false, errors = false, vitals = false, leakyErrors = false, consentCounts = false, leakyConsent = false, stripUtm = false, campaigns = null } = {}) {
+export async function startFixture({ port = 0, ids = 'consent', host = '127.0.0.1', bad = false, visitStore = '', leakPrivate = false, unsafeBeforeSend = false, leakInDom = false, rawPaths = false, consentDefer = false, extra = '', brokenSeo = false, leakyDelete = '', seoQuirks = false, errors = false, vitals = false, leakyErrors = false, consentCounts = false, leakyConsent = false, stripUtm = false, campaigns = null, collectorStatus = 0 } = {}) {
   let store = memoryStore();
   const ingest = [];
   const collector = () =>
@@ -78,6 +78,8 @@ export async function startFixture({ port = 0, ids = 'consent', host = '127.0.0.
       res.end(body);
     };
     try {
+      // collectorStatus: a collector that fails every report (a broken skip rule).
+      if (url.pathname === '/api/k' && collectorStatus) { res.writeHead(collectorStatus); return res.end(); }
       if (url.pathname === '/api/k') return collect(req, res);
       if (url.pathname === '/__store') return send(200, 'application/json', JSON.stringify({ daily: [...store.daily.values()], rows: store.rows }));
       if (url.pathname === '/__ingest') return send(200, 'application/json', JSON.stringify(ingest));

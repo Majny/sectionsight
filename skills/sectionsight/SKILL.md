@@ -5,7 +5,7 @@ license: MIT
 compatibility: The reference code needs a server or function that can take a same-origin POST (Node 18+, Workers, Deno, Bun). verify.mjs needs Node 20+, Playwright and Chromium (network access to install them).
 metadata:
   author: Jakub Dvořák (kubadvorak.com)
-  version: "0.3.0"
+  version: "0.4.0"
 ---
 
 # Privacy-first analytics
@@ -47,7 +47,9 @@ the directory that contains this SKILL.md.
    and anything else marked *ask*. Never write "GDPR compliant" anywhere. Say what
    was built, and that a lawyer should review the policy text. If nobody can
    answer (an unattended run), stop after Discover and write the questions
-   into your report.
+   into your report. If the owner answered the consent model, storage,
+   retention and private paths up front, build with the recommended
+   defaults for the rest and list each one as unconfirmed.
 7. **Secrets stay secret.** Slack tokens, webhook URLs, PostHog personal API
    keys and hashing secrets go in environment variables. Never commit them,
    never print them, never put them in client code. The PostHog *project* token
@@ -122,7 +124,10 @@ defaults. At minimum:
   link with the right number), which pages must be indexable by search
   engines, and which must not be (thank-you pages, internal search). If
   the owner has no answer, propose the main CTAs found in Discover and
-  the pages in the sitemap.
+  the pages in the sitemap. For "must not be", name only pages that already
+  carry `noindex` and that robots.txt does not block: a blocked page's
+  `noindex` is never seen (verify fails it), and pages robots.txt already
+  disallows belong in neither list.
 
 Write the answers into the project (e.g. `ANALYTICS_DECISIONS.md`); they go
 into the configuration and the privacy text.
@@ -151,8 +156,9 @@ parse fails closed, differently in each file:
   error and never starts PostHog.
 
 So a broken rule never measures a private page, but it can go unnoticed:
-run `scripts/verify.mjs` (step 4) after every change to the rule, and read
-its "the collector receives reports" and "the banner is shown" checks.
+run `scripts/verify.mjs` (step 4) after every change to the rule: "the
+collector receives reports" fails when the collector answers an error, and
+"the banner is shown" when the banner never asks.
 Then, in order:
 
 1. **Collector.** Mount `assets/collector.mjs` at a same-origin POST path
@@ -161,13 +167,19 @@ Then, in order:
    time zone. See `references/collector.md`.
 2. **Tracker.** Serve `assets/k.js` from the site, or bundle it, and configure
    it with the same `ids` and `skip`. Mark the sections with `data-k`, the
-   important links with `data-kcta`, goals with `data-kgoal`, and
-   accordions, tabs and toggles with `data-kui`. For client-side routing it
+   important links with `data-kcta`, goals with `data-kgoal`, forms with
+   `data-kform`, and accordions, tabs and toggles with `data-kui`. For client-side routing it
    follows `history` on its own. Add `data-errors="on"` and
    `data-vitals="on"` only if the owner said yes. See `references/tracker.md`.
 3. **The 404 page:** put `data-k404` on the `<html>` or `<body>` of the 404
    template (`references/tracker.md`), so broken links show up as
-   `nfin.<path>` in the totals.
+   `nfin.<path>` in the totals. A missing path must answer HTTP 404, not
+   200 with the home page or an app shell: static hosts (Cloudflare Pages,
+   Netlify, Vercel, GitHub Pages) do this when a top-level `404.html`
+   exists and no SPA fallback is configured; Node servers set the status
+   themselves; Next.js does it with `not-found`. An SPA served by its own
+   server answers 404 for paths outside its route list. verify fails a
+   missing path that answers 200.
 4. **Consent (B):** `assets/consent.js`, or a port that keeps its behaviour.
    Add a "Privacy settings" control (`data-consent-open`) in the footer of
    every page, including the 404 page. The banner text must name what Accept
@@ -200,10 +212,12 @@ Then, in order:
    are actually enforced, and how deletion really works.
 11. **Headers:** `connect-src 'self'` and `script-src 'self'` are enough for
    k.js. Inline config scripts need a nonce or hash in `script-src`, or an
-   external config file. consent.js injects a `<style>`: give its script
-   tag the page's nonce (`<script src="/consent.js" nonce="…">`; the style
-   inherits it), or set `data-styles="false"` and put its rules in the
-   site's stylesheet (`references/consent.md`). With
+   external config file. consent.js's look: on a static host (no
+   per-request nonce), serve `assets/consent.css` and set `stylesheet:
+   '/consent.css'`, or put its rules in the site's own CSS with `styles:
+   false`; with a per-request nonce, give consent.js's tag the nonce (its
+   `<style>` inherits it). verify fails a CSP violation from these scripts
+   (`references/consent.md`). With
    PostHog heatmaps, allow framing by the PostHog app on public pages only
    (`references/posthog.md`).
 
@@ -236,7 +250,10 @@ consent.
 
 Add the owner's answers about what must never break: `--expect` for each
 CTA (`'a[data-kcta=signup]@href=^/signup$'`), `--indexable` and
-`--noindex` for the pages, and `--sitemap`. These checks are read-only.
+`--noindex` for the pages, and `--sitemap`. These checks are read-only. A
+command-line `--expect` is checked on every `--pages` page; for a CTA that
+lives on some pages only, use the config file's `expect` entries with their
+own `pages` (`references/verify.md`).
 
 **Keep it checked (CI).** Write the settings you just used into
 `privacy-check.config.json` (`assets/ci/privacy-check.config.example.json`;
@@ -258,8 +275,9 @@ the host posts GitHub deployment statuses for previews, tell the owner to
 set the repository variable `PRIVACY_CHECK_PREVIEW=deployment`. Details:
 `references/verify.md`, "In CI". For links across the whole site, also
 offer `assets/ci/links.yml` (lychee: internal links on pull requests,
-external ones weekly); for uptime, suggest Upptime or Uptime Kuma rather
-than building anything. On another CI, run the same command line
+external ones weekly); for uptime and certificate or domain expiry, suggest
+a monitor (`references/decisions.md`, 4c) rather than building anything,
+and list it in the owner's to-do list. On another CI, run the same command line
 (`--config … --json …`) and keep `privacy-check.json`.
 
 ### 5. Report to the owner

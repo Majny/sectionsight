@@ -27,6 +27,8 @@ and remove what the site does not use:
 - whether you copied text (only whether an e-mail address was copied and
   how long the selection was, never the text);
 - whether you printed the page;
+- [only with `data-kform`] that a form (by its name, such as "contact")
+  was sent, never what you wrote in it;
 - whether you played a video;
 - the site you came from (its address only) and the campaign tag; when you
   reach a goal (a sign-up, a booking), the kind of site the visit came from
@@ -96,10 +98,12 @@ and the device type (phone, tablet, computer). Say what is **not** collected:
 
 - the host and CDN (IP addresses and request data, security cookies);
 - the database provider;
-- PostHog (EU Cloud): page views, clicks, heatmaps, dead clicks, errors, page
-  speed, the **full IP** (forwarded by the proxy for the location lookup;
-  with "Discard client IP data" on, PostHog drops it after deriving an
-  approximate location), and masked recordings;
+- PostHog (EU Cloud): page views, clicks, heatmaps, dead clicks, [errors,
+  only with `site.exceptions`] [page speed, only with `site.webVitals`], the
+  **full IP** (forwarded by the proxy for the location lookup), and masked
+  recordings. Say that PostHog drops the IP after deriving an approximate
+  location only once the owner has confirmed "Discard client IP data" is on
+  in the project settings; until then, it keeps it;
 - Umami: the path, referrer site, language, the IP shortened to its /24
   (IPv6 /48) and the **full user agent**, from which it builds a visitor id
   that changes monthly;
@@ -189,5 +193,10 @@ tied to a name may not be findable. Say how deletion really works:
 - **No contradictions.** Every other page that makes privacy claims (a
   security page, FAQ, terms, meta descriptions) must agree with the policy.
 - **Deletion as it really works.** If deletion is on request, say "write to us".
+- **A real page, not an afterthought.** It is indexable, in the sitemap,
+  with its own `<title>`, meta description, `lang` and canonical like the
+  site's other pages (the same head pattern: structured data, `og:*`), and
+  linked from every footer, the 404 page included. Its sitemap `lastmod`
+  comes from the build or the file's history, never an invented time.
 - **Fix flows, not text.** When a data flow breaks a platform's data-use
   policy, change the flow; do not document it.

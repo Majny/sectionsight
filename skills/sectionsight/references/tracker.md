@@ -23,6 +23,7 @@ it in the site's build if size matters.
 | `copy` | copying (max 5 per view) | `kind` email/text, `n` length; **never the text** |
 | `print` | printing (once per view) | `s` |
 | `goal` | `[data-kgoal]` clicked, or `k:goal` dispatched: once per goal per page load (on a client-routed site that is the visit; on a multi-page site, count conversions per visit from rows, or treat goals as per-page) | `k` name; on a page load that started a visit, also `gr` (the referrer host) and `gu` (the `utm_source`) at the top level, the same values the entry sent, so the collector can count the goal by the entry's source class |
+| `form` | a `<form data-kform="contact">` submitted, once per form per view, whether or not the server accepts it | `k` name, `s`; **never a field or its value** |
 | `consent` | only with `data-consent-counts="on"`: consent.js showed its banner by itself, or it was accepted, declined or withdrawn; **never carries ids**, in any mode, even after Accept | `k`: `shown`, `accept`, `decline` or `withdraw` |
 | `err` | only with `data-errors="on"`: a JavaScript error of the site's own scripts (max 5 per view, each fingerprint once); **never carries ids**, in any mode, with or without consent | `m` the scrubbed message, `f` the file name, `l` line, `c` column, `s` the section current at the time (see "JavaScript errors") |
 | `nf` | a view of the 404 page (marked with `data-k404`, see below), once per view, right after the view | `r` where the visitor came from: `internal` (a link on this site, or a client-side route: a broken link on this site), `external` (another site), `none` (typed, bookmarked, or no referrer) |
@@ -365,6 +366,10 @@ Both modules are in k.js, off unless their attribute is set:
   the kind instead.
 - **Goals**: `data-kgoal="signup"` on an element. For a form, dispatch
   `k:goal` after the server confirms, not on submit.
+- **Forms**: `data-kform="contact"` on the `<form>` counts submit attempts
+  (`form.contact` in the totals). Give the goal sent on the server's
+  confirmation the same name, and health rule (c2) alerts when submits
+  keep coming but none is confirmed: a form whose backend is broken.
 - **The 404 page**: put `data-k404` on its `<html>` or `<body>` (or set
   `kConfig.notFound = true` before k.js runs). Its view then also sends an
   `nf` report: the path that was asked for, cleaned like every path
@@ -436,7 +441,11 @@ after the new page renders, e.g. in a component with
 `useEffect(() => dispatchEvent(new CustomEvent('k:route', { detail: pathname })), [pathname])`.
 
 **React, Vue or Svelte SPAs (Vite etc.)**: the script tag in `index.html`.
-The history patch covers React Router, Vue Router and SvelteKit.
+The history patch covers React Router, Vue Router and SvelteKit. A view's
+`of` (sections on the page) is counted when the route starts: on the first
+load, before the app has mounted, it is 0, and after a client-side route it
+may be the previous page's. The `read` and `time` reports look the sections
+up again and carry the right `of`; use theirs. Nothing else needs changing.
 
 **Content Security Policy**: for k.js itself, `connect-src 'self'` and
 `script-src 'self'` are enough. An inline `window.kConfig` (or consent
@@ -481,6 +490,14 @@ It does not run in these cases:
 - The owner opt-out (`?k=off`).
 - A prerendered page until it is shown.
 - A path in `data-skip`.
+
+Lighthouse and PageSpeed Insights set `navigator.webdriver`, so their runs
+never see k.js work: a score from them says nothing about its cost. To
+measure it, run Lighthouse on a staging copy with `data-allow-automation="1"`
+(measured: main-thread work +25 ms on simulated mobile, no blocking time,
+CLS 0, scores unchanged). Serve a minified k.js in production (about 9.5 KB
+gzipped instead of 16 KB): any minifier works, e.g.
+`npx esbuild k.js --minify --outfile=k.min.js`.
 
 Every report goes to the same origin; there is no third-party request.
 

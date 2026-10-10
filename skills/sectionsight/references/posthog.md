@@ -26,7 +26,7 @@ const site = {
 // Bundled (Next.js, Vite): import('posthog-js'). Plain HTML: serve a copy of
 // node_modules/posthog-js/dist/module.mjs and import('/vendor/posthog.mjs').
 const load = () => import('posthog-js');   // nothing of PostHog is downloaded before consent
-// consent.js must already be loaded (no defer / beforeInteractive): it defines analyticsConsent.
+// consent.js must run first (deferred before this module, or beforeInteractive): it defines analyticsConsent.
 if (site.consented()) startPostHog(site, load); else purgePostHog();
 window.addEventListener('consent:changed', (e) => { if (e.detail === 'granted') startPostHog(site, load); });
 window.consentConfig = Object.assign(window.consentConfig || {}, {
@@ -41,6 +41,11 @@ window.consentConfig = Object.assign(window.consentConfig || {}, {
 - **Recipes per stack.** `references/recipes.md` has the whole wiring.
 - **GPC and DNT.** `startPostHog` refuses to start under Global Privacy
   Control or Do Not Track, whatever consent is stored.
+- **Page speed.** PostHog's web vitals are on only with `site.webVitals:
+  true`: set it from the same answer as k.js's `data-vitals`, so the
+  privacy text names page speed for both or neither.
+- **Self-hosted PostHog, staging and tests.** `createPostHogProxy({
+  upstream: { api, assets } })` replaces PostHog Cloud's hosts.
 - **Error tracking.** `capture_exceptions` is off unless `site.exceptions`
   is `true`. Error messages are whatever the code put in them; with it on,
   `before_send` cleans the URLs in stack frames and messages.

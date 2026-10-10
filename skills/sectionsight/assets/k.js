@@ -10,7 +10,8 @@
  * outbound, or a kind the page names with data-kcta); [data-kui] controls;
  * dead and rage clicks; copying (e-mail or not and the length, never the
  * text); printing; video plays. Per visit: where it came from, its active
- * time and the goals it reached ([data-kgoal] or the k:goal event). On a
+ * time and the goals it reached ([data-kgoal] or the k:goal event); form
+ * submits ([data-kform], the form's name only, never a field). On a
  * 404 page (data-k404 on <html> or <body>, or kConfig.notFound): the path
  * asked for and whether the link to it was internal, external or none.
  * Opt-in, off by default: data-errors="on" reports the page's own JavaScript
@@ -411,7 +412,7 @@
     view = {
       id: rid(), raw: raw, reported: reported || raw, path: cleanPath(reported || raw), t0: Date.now(), els: els, keys: els.map(sectionKey),
       io: null, line: [], bottom: false, cur: -1, far: -1, seen: {}, dwell: {}, active: 0, visibleMs: 0,
-      depth: 0, depthSent: 0, deads: 0, rages: 0, copies: 0, printed: false, played: false, scans: 0, errs: 0, errSeen: {},
+      depth: 0, depthSent: 0, deads: 0, rages: 0, copies: 0, printed: false, played: false, scans: 0, errs: 0, errSeen: {}, forms: {},
     };
     observe(view);
     measure();
@@ -684,6 +685,16 @@
     }, { passive: true });
     d.addEventListener('click', click, true);
     d.addEventListener('auxclick', click, true);
+    // A submit of a [data-kform] form: its name, once per form and view,
+    // never a field. Paired with a goal of the same name sent when the server
+    // confirms, it shows a form whose backend is broken (health.mjs).
+    d.addEventListener('submit', function (e) {
+      var v = view, f = e.target;
+      var name = v && f && f.getAttribute ? f.getAttribute('data-kform') : '';
+      if (!named(name, NAME) || v.forms[name]) return;
+      v.forms[name] = true;
+      send('form', { k: name, s: sectionOf(v, f) });
+    }, true);
     d.addEventListener('copy', function () {
       var v = view;
       if (!v || v.copies >= 5) return;

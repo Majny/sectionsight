@@ -36,10 +36,13 @@
  *     before consent and after it (SKIP when no err report arrives).
  *  9. Global Privacy Control: no report, no PostHog, no banner.
  * 10. The 404 page: with k.js's data-k404 marker, an "nf" report with the
- *     path only (SKIP without the marker).
+ *     path only (SKIP without the marker); a missing path answers 404.
  * 11. Broken things, read-only (also with --no-write): --expect CTA targets,
  *     --indexable and --noindex pages (meta robots, X-Robots-Tag,
  *     robots.txt), --sitemap.
+ * 12. Nothing broken by these scripts: no uncaught error or CSP violation
+ *     from k.js, consent.js or the PostHog guard, no hydration error.
+ * Throughout: the collector answers every report without an error.
  *
  * It sees what the browser sends, not what a server forwards afterwards: a
  * server-side rewrite that passes Cookie or Referer on to a vendor is
@@ -414,12 +417,23 @@ function record(context, log) {
     try {
       host = new URL(req.url()).host;
     } catch {}
-    log.push({ kind, host, at: Date.now(), url: req.url(), method: req.method(), body, unread: kind !== 'other' && req.method() === 'POST' && !body, page: req.frame()?.page() ?? null });
+    const entry = { kind, host, at: Date.now(), url: req.url(), method: req.method(), body, unread: kind !== 'other' && req.method() === 'POST' && !body, page: req.frame()?.page() ?? null };
+    log.push(entry);
+    if (kind === 'collector') answered.set(req, entry);
+  });
+  // The collector's answer: it may take every report and still fail to store
+  // it (a skip rule that does not parse answers 500 to everything).
+  context.on('response', (res) => {
+    const entry = answered.get(res.request());
+    if (entry) entry.status = res.status();
   });
 }
+const answered = new WeakMap();
 
 // A browser's ordinary user agent: collectors drop "HeadlessChrome" as a bot.
 let USER_AGENT = '';
+// Uncaught errors and console errors of every page this run opens (check 12).
+const PAGE_ERRORS = [];
 // silent: reports and PostHog events are answered in the browser even
 // without --no-write (the read-only checks of broken things).
 async function newContext(browser, { gpc = false, storageState, silent = false, bypassCSP = false } = {}) {
@@ -429,6 +443,8 @@ async function newContext(browser, { gpc = false, storageState, silent = false, 
     await probe.close();
   }
   const context = await browser.newContext({ userAgent: USER_AGENT, extraHTTPHeaders: gpc ? { 'Sec-GPC': '1' } : {}, ...(storageState ? { storageState } : {}), ...(bypassCSP ? { bypassCSP } : {}) });
+  context.on('weberror', (e) => { const x = e.error(); PAGE_ERRORS.push(String(x?.stack || x?.message || x)); });
+  context.on('console', (m) => { if (m.type() === 'error') PAGE_ERRORS.push(`${m.text()} ${m.location()?.url ?? ''}`); });
   if (NO_WRITE || silent) {
     // Writes are answered here; scripts and remote config still load.
     await context.route((url) => ['collector', 'posthog'].includes(classify(url.toString())), (route) => {
@@ -600,13 +616,17 @@ try {
     const ownHost = new URL(BASE).host;
     const others = [...new Set(log.filter((r) => r.host && r.host !== ownHost).map((r) => r.host))].filter((h) => !ALLOW_HOSTS.includes(h));
     check('before consent: no request to another host (or --allow-hosts)', others.length === 0, others.join(', '));
-    check('the collector receives reports', reports.length > 0,
-      reports.length ? `${reports.length} reports` : `none at ${COLLECTOR}: is the tracker off on this host (data-hosts, localhost), or not loaded?`);
+    const failedAnswers = reports.filter((r) => r.status >= 400);
+    const okAnswers = reports.filter((r) => r.status >= 200 && r.status < 300);
+    check('the collector receives reports', reports.length > 0 && failedAnswers.length === 0,
+      !reports.length ? `none at ${COLLECTOR}: is the tracker off on this host (data-hosts, localhost), or not loaded?`
+        : failedAnswers.length ? `${failedAnswers.length} of ${reports.length} answered ${[...new Set(failedAnswers.map((r) => r.status))].join(', ')}: the collector fails (a skip rule that does not parse, a store it cannot reach); its logs say why`
+        : `${reports.length} reports${okAnswers.length ? `, answered ${[...new Set(okAnswers.map((r) => r.status))].join(', ')}` : ''}`);
     // The id and event checks read k.js's wire format; another tracker's
     // reports are listed for a check by hand instead.
     // k.js's reports: { p, e?, d } where a view has no e and carries d.of.
     // Another tracker may use "p" too; it is not k.js unless its events are.
-    const K_EVENTS = new Set(['read', 'time', 'cta', 'ui', 'dead', 'rage', 'copy', 'print', 'goal', 'nf', 'err', 'consent']);
+    const K_EVENTS = new Set(['read', 'time', 'cta', 'ui', 'dead', 'rage', 'copy', 'print', 'goal', 'form', 'nf', 'err', 'consent']);
     const isK = (b) => !!b && typeof b.p === 'string' && !('t' in b) && !('type' in b) && (b.e === undefined ? typeof b.d?.of === 'number' : K_EVENTS.has(b.e));
     K_FORMAT = reports.length > 0 && reports.every((r) => isK(parsed(r)));
     const notK = 'not k.js\'s report format: check by hand: ' + reports.slice(0, 2).map((r) => short(r.body, 120)).join(' | ');
@@ -634,7 +654,10 @@ try {
       await declined.close();
     }
     const kinds = new Set(reports.map((r) => parsed(r)?.e ?? 'view'));
-    const noSections = K_FORMAT && reports.some((r) => parsed(r)?.e === undefined) && reports.filter((r) => parsed(r)?.e === undefined).every((r) => !parsed(r)?.d?.of);
+    // Time reports count the sections again when they are sent; a view's
+    // count is taken when the route starts, before an SPA may have rendered.
+    const times = reports.filter((r) => parsed(r)?.e === 'time');
+    const noSections = K_FORMAT && times.length > 0 && times.every((r) => !parsed(r)?.d?.of);
     check('reports include a view, a read and a time report', K_FORMAT ? ['view', 'read', 'time'].every((k) => kinds.has(k)) : null,
       !K_FORMAT ? 'not k.js\'s report format' : [...kinds].join(', ') + (noSections ? ' (no sections found: put the content in <main> with <section>s, or mark them with data-k)' : ''));
     await closeContext(context);
@@ -943,8 +966,12 @@ try {
     else {
       const bad = nf.filter((r) => hasProbe(r) || parsed(r).p !== MISSING || !['internal', 'external', 'none'].includes(parsed(r).d?.r));
       check(name, nf.length > 0 && bad.length === 0,
-        bad.length ? bad.slice(0, 2).map((r) => short(r.body)).join(' | ') : nf.length ? `${nf.length} nf report${nf.length > 1 ? 's' : ''}${soft}` : `the page is marked, but no nf report reached ${COLLECTOR} (k.js off on this path, or an older k.js)`);
+        bad.length ? bad.slice(0, 2).map((r) => short(r.body)).join(' | ') : nf.length ? `${nf.length} nf report${nf.length > 1 ? 's' : ''}` : `the page is marked, but no nf report reached ${COLLECTOR} (k.js off on this path, or an older k.js)`);
     }
+    // A missing page that answers 200 is a "soft 404": search engines may index
+    // it, and hosts that serve the home page for every path hide broken links.
+    check('404 page: a missing path answers 404', status ? !soft : null,
+      status ? (soft ? soft.trim() + ' Serve the 404 template with status 404 (references/recipes.md).' : `${status}`) : 'the request failed');
     await closeContext(context);
   }
 
@@ -1100,6 +1127,20 @@ try {
   }
 } finally {
   await browser.close();
+}
+
+// 12. The scripts this skill adds break nothing: no uncaught error or CSP
+// violation from them (a <style> under style-src 'self' leaves the banner
+// unstyled), and no hydration error (a node put into a framework's <body>
+// before it hydrates). Other console errors are the site's own and only
+// counted.
+{
+  const OURS = /\/(k|consent)(\.min)?\.js\b|posthog-guard|analyticsConsent/;
+  const HYDRATION = /hydrat|Minified React error #(418|423|425)\b/i;
+  const mine = PAGE_ERRORS.filter((m) => !/sectionsight-check failed|rejected for /.test(m) && (OURS.test(m) || HYDRATION.test(m)));
+  const others = PAGE_ERRORS.length - PAGE_ERRORS.filter((m) => /sectionsight-check failed|rejected for /.test(m)).length - mine.length;
+  check('no hydration error, CSP violation or error from the analytics scripts', mine.length === 0,
+    mine.length ? [...new Set(mine.map((m) => short(m, 160)))].slice(0, 3).join(' | ') : others ? `${others} other console error${others > 1 ? 's' : ''} (the site's own, not judged)` : '');
 }
 
 // --- Report ----------------------------------------------------------------------------

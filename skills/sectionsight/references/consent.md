@@ -64,7 +64,7 @@ Load it in the `<head>` of every page, before anything that waits for consent:
   onDecline: () => purgePostHog(),     // a first refusal: clear what an older setup stored
   onWithdraw: () => stopPostHog(),     // may return a promise; the page reloads after it, even if it throws
 };</script>
-<script src="/consent.js"></script>
+<script src="/consent.js" defer></script>   <!-- before k.js and the PostHog module -->
 ```
 
 **Options** (`data-*` on the tag, or `consentConfig`):
@@ -77,13 +77,18 @@ Load it in the `<head>` of every page, before anything that waits for consent:
 | `skip` | — | one regex of paths where the banner never shows; `'/^\/account(\/|$)/i'` (slashes and flags) for a case-insensitive one |
 | `reloadOnWithdraw` | `true` | reload after a withdrawal |
 | `deleteButton` | `true` | offer "Delete my visit data" in the reopened banner after an Accept (needs k.js on the page); `false` hides it |
+| `mount` | `start` | `end` puts the banner at the end of `<body>`: required where a framework hydrates `<body>` (Next.js, React SSR), since a node before its children breaks hydration; the banner then takes focus when it shows by itself |
+| `stylesheet` | — | a URL of `assets/consent.css` as the site serves it: loaded with a `<link>` instead of the `<style>` element, for a CSP without a nonce |
 | `styles` | `true` | inject the default CSS in a `<style>` element |
 | `styleNonce` | the nonce of consent.js's own `<script>` tag | the page's CSP nonce, put on that `<style>` element |
 | `texts` | English placeholders | partial objects are fine; missing texts keep their defaults (`deleteData` is the delete button's label) |
 | `onGranted`, `onDecline`, `onWithdraw` | — | hooks, read when they run, so the page may set them later |
 
-Load it without `defer` (or `strategy="beforeInteractive"` in Next.js), so
-`window.analyticsConsent` exists before the code that reads it.
+Load it before the code that reads `window.analyticsConsent`: with `defer`
+ahead of k.js and the PostHog module (they run in document order), or
+`strategy="beforeInteractive"` in Next.js. Without `defer` it blocks
+rendering; that is needed only when an inline script reads it during
+parsing.
 
 **Footer, on every page**:
 `<button type="button" class="ph-no-capture" data-consent-open>Privacy settings</button>`
@@ -110,14 +115,29 @@ the answer holds for that page load only.
 
 **Styling**: the CSS variables `--consent-bg`, `--consent-fg` and
 `--consent-z`, or `data-styles="false"` and your own CSS for `.consent-banner*`.
+Keep in your own CSS what the default rules guarantee: the banner never
+taller than the viewport (`max-height:100dvh; overflow-y:auto`, so it
+stays readable at 400% zoom), and a visible edge on a dark page. The
+banner's text is often the largest text in the first screen, so Lighthouse
+may report it as the LCP element; a short body keeps that cheap. The
+banner waits for the page's web fonts (at most 3 s) before it shows: a
+bottom-anchored banner that reflows when a font swaps in grows upward,
+which counts as a layout shift.
+Keyboard: Escape closes a banner reopened from "Privacy settings" (not the
+first one, which waits for an answer), and after an answer focus moves on
+into the page.
 
-**Content Security Policy.** consent.js adds a `<style>` element, which a
-`style-src` without `'unsafe-inline'` blocks. Either give consent.js's
+**Content Security Policy.** By default consent.js adds a `<style>`
+element, which a `style-src` without `'unsafe-inline'` blocks (the banner
+then shows unstyled at the top of the page; verify fails it). On a static
+host, with no per-request nonce, serve `assets/consent.css` and set
+`stylesheet: '/consent.css'` (allowed by `style-src 'self'`, and not
+render-blocking: the banner waits for it), or put the same rules in the
+site's own CSS bundle with `styles: false`. With a per-request nonce, give consent.js's
 script tag the page's nonce (`<script src="/consent.js" nonce="…">`, with
 `style-src 'self' 'nonce-…'`): the style takes the same nonce. (`styleNonce`
 sets another one; a nonce in a `data-*` attribute is readable by any script
-on the page, so prefer the tag's own.) Or set `data-styles="false"` and copy the rules from consent.js's `mount()`
-into the site's own stylesheet, so `style-src 'self'` is enough. The inline
+on the page, so prefer the tag's own.) The inline
 `window.consentConfig` script needs a nonce or hash in `script-src`, or
 put the config in an external file (`<script src="/consent-config.js">`
 before consent.js).

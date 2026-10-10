@@ -89,6 +89,22 @@
   var RELOAD = String(opt('reloadOnWithdraw', 'true')) !== 'false';
   // "Delete my visit data" next to Decline once consent was given (k.js deletes).
   var DELETE = String(opt('deleteButton', 'true')) !== 'false';
+  // Where the banner lives: 'start' of <body> (keyboard users reach it first),
+  // or 'end' for a <body> a framework hydrates (React, Next.js): a node put
+  // before its children makes hydration fail. With 'end', the banner that
+  // shows by itself takes focus instead (without scrolling).
+  var AT_END = opt('mount', 'start') === 'end';
+  // The default look (the same rules as assets/consent.css).
+  var CSS =
+    '.consent-banner{position:fixed;left:0;right:0;bottom:0;z-index:var(--consent-z,45);padding:12px;font:inherit;box-sizing:border-box;max-height:100vh;max-height:100dvh;overflow-y:auto}' +
+    '.consent-banner__inner{max-width:440px;margin-left:auto;background:var(--consent-bg,#111);color:var(--consent-fg,#fff);border-radius:14px;padding:16px;border:1px solid rgba(255,255,255,.2);box-shadow:0 12px 40px rgba(0,0,0,.35)}' +
+    '.consent-banner__title{font-weight:600;margin:0 0 6px}' +
+    '.consent-banner__body{margin:0 0 12px;font-size:.9em;opacity:.85}' +
+    '.consent-banner__body a{color:inherit;text-decoration:underline}' +
+    '.consent-banner__buttons{display:flex;gap:12px}' +
+    '.consent-banner__more{margin-top:12px}' +
+    '.consent-banner__button{flex:1;min-height:44px;border-radius:999px;border:1px solid currentColor;background:transparent;color:inherit;font:inherit;font-weight:600;cursor:pointer}';
+  function place() { if (AT_END) d.body.appendChild(live); else d.body.insertBefore(live, d.body.firstChild); }
   // Defaults, overridden one by one by data-* or consentConfig.texts.
   var TEXT = {
     title: opt('title', 'We measure how people use this site.'),
@@ -188,9 +204,14 @@
   }
 
   function close() {
+    var inside = !!live && live.contains(d.activeElement);
     asked = false;
     render();
     if (back && back.isConnected) back.focus();
+    // Answered the banner that showed by itself: focus the empty spot where it
+    // was (the start of <body>), so the next Tab goes on into the page rather
+    // than starting over from the top of the document.
+    else if (inside && live) { live.setAttribute('tabindex', '-1'); live.focus({ preventScroll: true }); }
     back = null;
   }
 
@@ -231,7 +252,7 @@
 
   function render() {
     // A client-side router may replace <body> (Astro's ClientRouter): mount again.
-    if (live && !live.isConnected && d.body) d.body.insertBefore(live, d.body.firstChild);
+    if (live && !live.isConnected && d.body) place();
     if (!live) return;
     var open = asked || needsAnswer();
     var existing = live.firstChild;
@@ -263,9 +284,12 @@
       inner.appendChild(more);
     }
     box.appendChild(inner);
+    // Reopened from "Privacy settings", Escape closes it with nothing changed.
+    // The banner that asks by itself stays: Escape is not an answer.
+    if (asked) box.addEventListener('keydown', function (e) { if (e.key === 'Escape' && asked) { e.preventDefault(); close(); } });
     live.appendChild(box);
     // Shown by itself (not opened from "Privacy settings"): once a page load.
-    if (!asked && !shown) { shown = true; ui('shown'); }
+    if (!asked && !shown) { shown = true; ui('shown'); if (AT_END) no.focus({ preventScroll: true }); }
     if (asked) no.focus();
   }
 
@@ -292,35 +316,43 @@
     // The live region is in the page before the banner appears, so screen
     // readers announce it.
     live = el('div', { 'aria-live': 'polite', 'class': 'consent-live' });
-    // First in <body>: keyboard users reach the question before the page.
-    d.body.insertBefore(live, d.body.firstChild);
+    // First in <body>: keyboard users reach the question before the page
+    // (or last, with mount: 'end').
+    place();
     if (skipError && (/^(localhost|127\.0\.0\.1|\[::1\])$|\.localhost$/.test(location.hostname) || /[?&]k-debug(=|&|$)/.test(location.search))) {
       var note = el('p', { role: 'alert', 'class': 'consent-error' }, 'consent.js: the skip rule does not parse (' + skipError + '), so the banner never asks. Fix the rule.');
       note.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;margin:0;padding:8px 12px;background:#b00020;color:#fff;font:14px/1.4 system-ui,sans-serif';
       d.body.insertBefore(note, d.body.firstChild);
     }
-    if (String(opt('styles', 'true')) !== 'false') {
-      // A Content-Security-Policy without 'unsafe-inline' for styles needs the
-      // page's nonce here (styleNonce), or styles: false and the same rules in
-      // the site's own stylesheet (references/consent.md).
+    // The banner's look: a stylesheet the site serves (stylesheet option,
+    // assets/consent.css: allowed by style-src 'self', no nonce, never
+    // render-blocking), else a <style> element (needs 'unsafe-inline' or the
+    // page's nonce under a CSP), else nothing (styles: false, the same rules
+    // in the site's own CSS). See references/consent.md.
+    var waits = [];
+    var sheet = opt('stylesheet', '');
+    if (sheet) {
+      var link = el('link', { rel: 'stylesheet', href: sheet });
+      waits.push(new Promise(function (ok) { link.onload = link.onerror = ok; }));
+      d.head.appendChild(link);
+    } else if (String(opt('styles', 'true')) !== 'false') {
       // The nonce of this script tag itself is the simplest: give
       // <script src="/consent.js" nonce="…"> and it carries over. (The nonce
       // property, not the attribute: browsers hide the attribute's value.)
       var nonce = opt('styleNonce', '') || (tag && tag.nonce) || '';
       var css = el('style', {});
       if (nonce) css.nonce = nonce;
-      css.textContent =
-        '.consent-banner{position:fixed;left:0;right:0;bottom:0;z-index:var(--consent-z,45);padding:12px;font:inherit}' +
-        '.consent-banner__inner{max-width:440px;margin-left:auto;background:var(--consent-bg,#111);color:var(--consent-fg,#fff);border-radius:14px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.35)}' +
-        '.consent-banner__title{font-weight:600;margin:0 0 6px}' +
-        '.consent-banner__body{margin:0 0 12px;font-size:.9em;opacity:.85}' +
-        '.consent-banner__body a{color:inherit;text-decoration:underline}' +
-        '.consent-banner__buttons{display:flex;gap:12px}' +
-        '.consent-banner__more{margin-top:12px}' +
-        '.consent-banner__button{flex:1;min-height:44px;border-radius:999px;border:1px solid currentColor;background:transparent;color:inherit;font:inherit;font-weight:600;cursor:pointer}';
+      css.textContent = CSS;
       d.head.appendChild(css);
     }
-    render();
+    // Web fonts first: a bottom-anchored banner that reflows when they swap in
+    // grows upward, and that counts as a layout shift. At most 3 s.
+    if (d.fonts && d.fonts.ready) waits.push(d.fonts.ready);
+    if (!waits.length || typeof Promise === 'undefined') return render();
+    var done = false;
+    var go = function () { if (!done) { done = true; render(); } };
+    Promise.all(waits).then(go, go);
+    setTimeout(go, 3000);
   }
 
   w.analyticsConsent = { get: get, set: set, open: open };

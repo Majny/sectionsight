@@ -146,8 +146,19 @@ visits are answered in the browser, so they never store a report):
   the probe query. If the page carries k.js's `data-k404` marker, an `nf`
   report must arrive with exactly that path, no query and no probe;
   without the marker it is a SKIP with a hint (mark the template,
-  `tracker.md`). The detail mentions a "soft 404" when the page answered
-  something other than 404.
+  `tracker.md`). A separate check fails when the missing path answers
+  anything but 404 or 410: a "soft 404" that search engines may index,
+  and on hosts that serve the home page for every path, broken links that
+  never show up.
+- **Nothing broken** (always): every page opened in the run is watched for
+  uncaught errors and console errors. It fails on an error or a CSP
+  violation that comes from k.js, consent.js or the PostHog guard, and on a
+  hydration error (React #418/#423/#425: a node put into a framework's
+  `<body>` before it hydrates; use consent.js `mount: 'end'`). The site's
+  own console errors are counted in the detail, not judged.
+- **The collector's answers**: "the collector receives reports" fails when
+  any report is answered with an HTTP error (a skip rule that does not
+  parse makes the Cloudflare recipe answer 500 to everything).
 
 **robots.txt, as verify reads it.** Only the `User-agent: *` group, not a
 crawler's own group (`User-agent: Googlebot` rules are ignored, while
@@ -383,7 +394,8 @@ the nightly production run rather than on previews, or pass
 **Uptime is a different job.** verify runs once a night; it does not tell
 you the site is down at noon. Use an uptime monitor for that, such as
 [Upptime](https://github.com/upptime/upptime) (GitHub Actions, no server)
-or [Uptime Kuma](https://github.com/louislam/uptime-kuma) (self-hosted).
+or [Uptime Kuma](https://github.com/louislam/uptime-kuma) (self-hosted,
+which also warns before the TLS certificate expires).
 
 **Also worth having:**
 

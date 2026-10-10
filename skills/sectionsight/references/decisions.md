@@ -195,7 +195,18 @@ Whether to run `assets/health.mjs` (`alerts.md`), and:
 - **thresholds:** the defaults (silence 3 h, visits under 40% of usual,
   a goal at 0 for 3 days, 404 spikes at 3×), or the owner's;
 - **quiet hours**, in their time zone;
-- keeping the hourly visit counts (`hour.<HH>`) that two rules need.
+- keeping the hourly visit counts (`hour.<HH>`) that three rules need;
+- **forms that matter** (contact, booking, sign-up): mark them with
+  `data-kform` and send the goal of the same name on the server's
+  confirmation, so a broken backend alerts within a day.
+
+**Outside the site (ask, then suggest; build nothing):** analytics only
+sees visits that reach the site. Whether the site is down, or its TLS
+certificate or domain is about to expire, needs a check from outside:
+suggest [Uptime Kuma](https://github.com/louislam/uptime-kuma) (self-hosted,
+checks certificate expiry), UptimeRobot or Better Stack (hosted, with
+certificate and domain expiry on their plans), and put it on the owner's
+to-do list in step 5's report. Upptime checks status only.
 
 ## 4d. JavaScript errors and page speed (ask; both off by default)
 

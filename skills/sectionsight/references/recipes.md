@@ -23,17 +23,25 @@ visits.mjs   ── on a schedule: rows ──► Slack lines / e-mail          
   flags, and posthog-guard takes a RegExp (`/…/i`) or that string.
 - **Content Security Policy.** Inline `<script>` config (as below) needs a
   nonce or hash in `script-src`, or move the config into a small external
-  file (`/analytics-config.js`). consent.js injects a `<style>`: give its
-  `<script>` tag the page's nonce (the style inherits it), or set
-  `data-styles="false"` and copy its rules into the site's stylesheet, so
-  `style-src 'self'` is enough.
-- **Load consent.js before anything that reads it.** In the `<head>`,
-  without `defer` (or `beforeInteractive` in Next.js), then k.js, then the
-  PostHog code.
+  file (`/analytics-config.js`). consent.js injects a `<style>` by default:
+  on a static host serve `assets/consent.css` with `stylesheet:
+  '/consent.css'` (or its rules in the site's CSS and `styles: false`), so
+  `style-src 'self'` is enough; with a per-request nonce, give consent.js's
+  `<script>` tag the nonce (the style inherits it).
+- **Load consent.js before anything that reads it.** In the `<head>`, with
+  `defer` and before k.js and the PostHog module (deferred and module
+  scripts run in document order, after parsing), or `beforeInteractive` in
+  Next.js. Without `defer` it blocks rendering (about +150 ms FCP on a
+  mobile Lighthouse run); drop `defer` only when an inline script reads
+  `window.analyticsConsent` while the page is still parsing.
 - **No same-origin server?** The collector needs a route that takes a POST
   on the site's own origin (a function, an API route, a small Node server).
   If the site is purely static with no functions, stop and ask the owner.
   Other origins mean CORS and a second host to describe in the policy.
+- **Linters:** the copied assets are vendored code, ES5 in the browser
+  files; add them to the linter's ignore list (e.g. `public/k.js`,
+  `public/consent.js`, `lib/analytics/*.mjs` in eslint's `ignores`) rather
+  than editing them to satisfy the site's rules.
 - **TypeScript:** the assets are plain JS. Import `.mjs` with `allowJs`, or
   add a one-line `declare module '*/collector.mjs';` shim. Do not rewrite
   them in TS by hand; the tests cover the JS.
@@ -44,7 +52,7 @@ visits.mjs   ── on a schedule: rows ──► Slack lines / e-mail          
 <!-- in every page's <head>, private pages included (consent.js hides itself there) -->
 <script>window.consentConfig = { skip: '^/(account|reset)(/|$)', detailsHref: '/privacy',
   texts: { title: '…', body: '…' } };</script>
-<script src="/consent.js"></script>
+<script src="/consent.js" defer></script>
 <script src="/k.js" defer data-ids="consent" data-skip="^/(account|reset)(/|$)"
         data-hosts="example.com,www.example.com,localhost,127.0.0.1"></script>
 <!-- only if PostHog is used: -->
@@ -102,13 +110,44 @@ The layout, with consent.js and k.js before hydration:
 
 ```tsx
 import Script from 'next/script';
-// in <head> or at the top of <body>:
-<Script id="consent-config" strategy="beforeInteractive">{`window.consentConfig = { skip: ${JSON.stringify(SKIP)}, detailsHref: '/privacy' };`}</Script>
-<Script src="/consent.js" strategy="beforeInteractive" />
-<Script src="/k.js" strategy="afterInteractive" data-ids="consent" data-skip={SKIP} data-hosts={HOSTS.join(',')} />
+import { headers } from 'next/headers';
+// With a nonce-based CSP (below); without one, drop the two lines about it.
+const nonce = (await headers()).get('x-nonce') ?? undefined;
+// in <head> or at the top of <body>. mount: 'end' is required: React hydrates
+// <body>, and a banner inserted before its children breaks hydration (#418).
+<Script id="consent-config" strategy="beforeInteractive" nonce={nonce}>{`window.consentConfig = { skip: ${JSON.stringify(SKIP)}, detailsHref: '/privacy', mount: 'end' };`}</Script>
+<Script src="/consent.js" strategy="beforeInteractive" nonce={nonce} />
+<Script src="/k.js" strategy="afterInteractive" nonce={nonce} data-ids="consent" data-skip={SKIP} data-hosts={HOSTS.join(',')} />
 // in the footer:
 <button type="button" className="ph-no-capture" data-consent-open>Privacy settings</button>
 ```
+
+**CSP on the App Router.** It needs inline scripts, so a strict policy is
+the nonce one from Next's CSP guide: a `proxy.ts` (`middleware.ts` before
+Next 16) that sets `script-src 'self' 'nonce-…' 'strict-dynamic'` and
+`style-src 'self' 'nonce-…'` and passes the nonce in `x-nonce`. With
+`'strict-dynamic'`, scripts loaded by a nonced script (PostHog's lazy
+recorder) are allowed and `'self'` is ignored. Nonces need dynamic
+rendering: pages cannot be static or use partial prerendering, so turn
+`cacheComponents` off. consent.js's `<style>` takes the nonce of its own
+tag.
+
+**Scheduled jobs on `next start`** (Slack visit lines, digest, retention,
+health): Next bundles the route handler and `instrumentation.ts` into
+separate module instances, so share one store through `globalThis`:
+
+```ts
+// lib/analytics/store.ts
+export const store = () => (globalThis.__kStore ??= fileStore('./data/analytics'));
+// instrumentation.ts
+export async function register() {
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+  const { startJobs } = await import('./lib/analytics/jobs');   // setInterval loops calling the assets
+  startJobs();
+}
+```
+
+On serverless hosts (Vercel), use the host's cron calling a route instead.
 
 **Collector.** If the store's `init()` fails, the collector must still
 answer 204 and try again on the next report (the same wrapper as in
@@ -188,6 +227,33 @@ export const POST = (req: Request) => collect(req);
   its banner and follows routes; k.js follows `history`.
 - **`astro dev`** does not run Pages Functions. Test with
   `wrangler pages dev ./dist`.
+
+## A Vite SPA (React, Vue, Svelte) with a Node server
+
+k.js and consent.js go in `index.html` (`defer`, consent.js first). The
+history patch follows the router. The server serves `dist/`, the collector
+and, for unknown paths, **a real 404**: an SPA fallback that answers 200 for
+every path is a "soft 404" (verify fails it). Keep one list of routes that
+the router and the server both import, so a new page cannot be served as a
+404 by mistake:
+
+```js
+// src/routes.js: the only list of pages
+export const ROUTES = ['/', '/product', '/about', '/privacy', '/blog/:slug'];
+export const known = (path) => ROUTES.some((r) => new RegExp('^' + r.replace(/:[^/]+/g, '[^/]+') + '/?$').test(path));
+
+// server.mjs
+import { known } from './src/routes.js';
+app.post('/api/k', toNodeHandler(collect));
+app.use(express.static('dist', { index: false }));
+app.use((req, res) => res.status(known(req.path) ? 200 : 404).type('html').send(known(req.path) ? shell : shell404));
+// shell404: dist/index.html with data-k404 on <html>, so k.js reports the
+// broken link; the router's catch-all route renders the 404 page.
+```
+
+In the router's catch-all route, set the marker for client-side 404s
+before k.js sees the route (`useLayoutEffect` adding `data-k404` to
+`<html>`, removed on unmount).
 
 ## When something does not fit
 

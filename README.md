@@ -11,9 +11,10 @@ then does this:
 - **asks** the owner about the few decisions only they can make: the
   consent model, where data lives, retention, private pages;
 - **builds** a cookieless tracker that measures what people actually read:
-  active seconds per page section and whether it was read; scroll depth, CTA and goal clicks, dead and rage clicks, copies, prints
-  and video plays, and 404s (including which ones came from broken links
-  on the site itself); and,
+  active seconds per page section and whether it was read; scroll depth, CTA and goal clicks, form submits (never their content),
+  dead and rage clicks, copies, prints and video plays, and 404 pages
+  (including which ones came from broken links on the site itself; a
+  link checker in CI covers images and files); and,
   opt-in, the site's own JavaScript errors (scrubbed, counted per page,
   never tied to a visit) and Core Web Vitals (LCP, CLS, INP, TTFB as
   buckets, with the section that was slow). A same-origin collector stores
@@ -41,10 +42,11 @@ then does this:
     IP or a user agent), and Search Console's daily top queries and pages
     without the `googleapis` package;
   - health and anomaly alerts to an ops channel: failed writes behind the
-    collector's silent 204, hours without a visit, a day far below the
-    usual, a goal that stopped, 404 spikes and new broken links, new or
-    spiking JavaScript errors, each compared with the same weekday and
-    hours of earlier weeks;
+    collector's silent 204, a form that is sent but never confirmed (its
+    backend is broken), and, on sites with steady traffic, hours without a
+    visit, a day far below or far above the usual, a goal that stopped,
+    404 spikes and new broken links, new or spiking JavaScript errors, each
+    compared with the same weekday and hours of earlier weeks;
 - **enforces what it promises about data:**
   - retention enforced for every store without a TTL (files, SQL), with the
     oldest stored day shown to the owner, and the bot's own Slack lines
@@ -82,9 +84,13 @@ then does this:
 
 Cookieless analytics tools count page views. None of the ~80 open-source
 analytics tools reviewed for this project measures time per page
-*section*. None keeps totals for everyone but per-visit rows (reports
+*section*. None keeps totals for everyone (except browsers that send
+Global Privacy Control or Do Not Track, which are not counted at all) but per-visit rows (reports
 stored with a random visit id) only for people who said yes. And none
 comes with a test that proves the privacy claims for the setup it builds.
+
+The closest is PostHog's `cookieless_mode: 'on_reject'`, which counts
+people who decline with a daily server-side hash.
 
 Consent auditors do exist, and they work well alongside this skill:
 [consentdiff](https://github.com/Elijas121/consentdiff),
@@ -145,6 +151,7 @@ skills/sectionsight/
     retention.mjs           retention enforced, its status, old Slack lines deleted
     dsar.mjs                a visitor's own rows: export, delete
     consent.js              the banner
+    consent.css             its default look, for a CSP without a nonce
     posthog-guard.mjs       PostHog: consent-gated, URLs cleaned, safe withdrawal
     posthog-proxy.mjs       same-origin proxy with a header allowlist
     ci/privacy-check.yml    GitHub Actions: verify on pull requests and nightly
@@ -170,7 +177,7 @@ SECTIONSIGHT_MONGO_MODULES=/path/with/node_modules node --test test/mongo.test.m
 ```
 
 The browser tests run `verify.mjs` against a fixture site, under a
-production-like name, in all three consent models. Eleven negative controls
+production-like name, in all three consent models. Fourteen negative controls
 prove that the checks fail when they should:
 - a careless page (cookies, storage, PostHog before consent, leaked e-mail);
 - a tracker left running on a private page;
@@ -184,7 +191,10 @@ prove that the checks fail when they should:
 - a "Delete my visit data" request that also carries the page URL, as a
   field or in its query;
 - an error report whose message reaches the collector unscrubbed;
-- consent counts that carry the visit id.
+- consent counts that carry the visit id;
+- a collector that answers 500 to every report;
+- a hydration error on the page;
+- a banner style blocked by the page's Content Security Policy.
 
 ## Not legal advice
 

@@ -26,7 +26,7 @@
 
 /** Largest report accepted, in bytes. A real one is under 600. */
 export const MAX_BYTES = 4096;
-export const EVENTS = ['view', 'read', 'time', 'cta', 'ui', 'dead', 'rage', 'copy', 'print', 'goal', 'nf', 'err', 'consent'];
+export const EVENTS = ['view', 'read', 'time', 'cta', 'ui', 'dead', 'rage', 'copy', 'print', 'goal', 'form', 'nf', 'err', 'consent'];
 /** What consent.js reports when the owner counts the banner's answers (k.js data-consent-counts). */
 export const CONSENT_EVENTS = ['shown', 'accept', 'decline', 'withdraw'];
 export const DEPTHS = [25, 50, 75, 100];
@@ -515,6 +515,8 @@ const DATA = {
   copy: (d) => ({ kind: d.kind === 'email' ? 'email' : 'text', n: int(d.n, 0, 100_000) ?? 0, s: key(d.s) }),
   print: (d) => ({ s: key(d.s) }),
   goal: (d) => (named(d.k, NAME) ? { k: d.k } : null),
+  // A [data-kform] form was submitted: its name only.
+  form: (d) => (named(d.k, NAME) ? { k: d.k, s: key(d.s) } : null),
   // A 404 page: where the link to it was (internal = a broken link on the site).
   nf: (d) => ({ r: d.r === 'internal' || d.r === 'external' ? d.r : 'none' }),
   // The consent banner was shown or answered (consent.js, k.js data-consent-counts).
@@ -670,6 +672,11 @@ export function dailyIncs(b, who, day, admit, hour) {
       if (SOURCE_CLASSES.includes(b.goalSource)) add(visit, `goalsrc.${g}.${b.goalSource}`);
       break;
     }
+    case 'form':
+      // Per day, next to the goals: submits of a form whose goal is sent when
+      // the server confirms (health.mjs compares the two).
+      add(visit, `form.${known('form', d.k)}`);
+      break;
     case 'consent':
       add(visit, `consent.${d.k}`);
       break;
@@ -822,7 +829,7 @@ export function defaultClientIp(request) {
 
 // Distinct keys a day may add per kind. Past them a hostile client's junk is
 // counted as "other" instead of growing the documents. Per process.
-export const DAILY_CAPS = { path: 300, section: 400, src: 200, campaign: 100, lang: 60, ui: 100, out: 200, nav: 300, cta: 50, goal: 50, nf: 100, err: 50 };
+export const DAILY_CAPS = { path: 300, section: 400, src: 200, campaign: 100, lang: 60, ui: 100, out: 200, nav: 300, cta: 50, goal: 50, form: 50, nf: 100, err: 50 };
 
 /**
  * Creates the collector. Options:

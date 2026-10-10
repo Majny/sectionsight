@@ -21,7 +21,7 @@ function storeWith(days) {
 }
 const hours = (perHour, upTo = 24) => Object.fromEntries(Array.from({ length: upTo }, (_, h) => [String(h).padStart(2, '0'), perHour(h)]).filter(([, n]) => n));
 const busy = (n) => ({ hour: hours(() => n), visits: n * 24 });
-const rulesOnly = (name) => Object.fromEntries(['silence', 'low', 'goal', 'writes', 'notFound'].map((r) => [r, r === name ? {} : false]));
+const rulesOnly = (name) => Object.fromEntries(['silence', 'low', 'high', 'goal', 'forms', 'writes', 'notFound'].map((r) => [r, r === name ? {} : false]));
 const keys = (r) => r.alerts.map((a) => a.rule);
 
 test('helpers: median, days', () => {
@@ -70,6 +70,19 @@ test('(b) low: visits so far today under 40% of the same hours of earlier Friday
   assert.deepEqual(keys(await checkHealth({ store: storeWith(tiny), now: NOW, rules: rulesOnly('low') })), []);
 });
 
+test('(b2) high: visits so far today at least 3x the same hours of earlier Fridays', async () => {
+  const days = Object.fromEntries(FRIDAYS.map((d) => [d, busy(2)]));
+  days[TODAY] = { hour: hours(() => 7, 14) }; // 98 by 14:00, usually 28
+  const r = await checkHealth({ store: storeWith(days), now: NOW, rules: rulesOnly('high') });
+  assert.deepEqual(keys(r), ['high']);
+  assert.equal(r.alerts[0].severity, 'info');
+  assert.match(r.alerts[0].text, /by 14:00: 98, usually 28/);
+  // Under the minimum (30), even at 10x a tiny baseline: no alert.
+  const tiny = Object.fromEntries(FRIDAYS.map((d) => [d, { hour: { '09': 1 } }]));
+  tiny[TODAY] = { hour: { '09': 10, '10': 10 } };
+  assert.deepEqual(keys(await checkHealth({ store: storeWith(tiny), now: NOW, rules: rulesOnly('high') })), []);
+});
+
 test('(c) a goal at 0 for 3 days while it usually happens daily; a rare goal does not alert', async () => {
   const days = {};
   for (let i = 4; i <= 31; i++) days[addDays(TODAY, -i)] = { goal: { signup: 2, demo: i % 3 === 0 ? 1 : 0 } };
@@ -77,6 +90,25 @@ test('(c) a goal at 0 for 3 days while it usually happens daily; a rare goal doe
   const r = await checkHealth({ store: storeWith(days), now: NOW, rules: rulesOnly('goal') });
   assert.deepEqual(keys(r), ['goal:signup'], 'demo: median 0 a day, so silence is normal');
   assert.match(r.alerts[0].text, /Goal "signup": 0 in the last 3 days, usually 2 a day/);
+});
+
+test('(c2) forms: submits with no confirmed goal alert once the goal is known; an unpaired form does not', async () => {
+  const days = {};
+  for (let i = 2; i <= 29; i++) days[addDays(TODAY, -i)] = { form: { contact: 1 }, goal: { contact: i % 4 === 0 ? 1 : 0 } };
+  days[addDays(TODAY, -1)] = { form: { contact: 2, newsletter: 9 } };
+  days[TODAY] = { form: { contact: 1, newsletter: 3 } };
+  const r = await checkHealth({ store: storeWith(days), now: NOW, rules: rulesOnly('forms') });
+  assert.deepEqual(keys(r), ['forms:contact'], 'newsletter never had a goal: not armed');
+  assert.equal(r.alerts[0].severity, 'critical');
+  assert.match(r.alerts[0].text, /Form "contact": 3 submits since 2026-10-08, none confirmed/);
+  // A confirmation today clears it.
+  days[TODAY].goal = { contact: 1 };
+  const again = await checkHealth({ store: storeWith(days), now: NOW, rules: rulesOnly('forms'), state: r.state });
+  assert.deepEqual(keys(again), []);
+  assert.match(again.recovered[0].text, /form "contact" submits are confirmed again/);
+  // Two submits: under minSubmits (3).
+  days[TODAY] = {};
+  assert.deepEqual(keys(await checkHealth({ store: storeWith(days), now: NOW, rules: rulesOnly('forms') })), []);
 });
 
 test('(d) writes: failures in the health record, and reports with no write', async () => {

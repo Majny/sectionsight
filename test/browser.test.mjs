@@ -690,3 +690,128 @@ test('data-strip-utm: utm_* leave the address bar (other parameters, the hash an
     await f.close();
   }
 });
+
+test('data-kform: a submit sends the form name once per view, never a field; the totals count it next to the goals', { timeout: 120_000 }, async () => {
+  const f = await startFixture({ ids: 'consent' });
+  const browser = await chromium.launch();
+  try {
+    const ua = (await (await browser.newPage()).evaluate(() => navigator.userAgent)).replace(/HeadlessChrome/g, 'Chrome');
+    const context = await browser.newContext({ userAgent: ua });
+    await context.addInitScript(() => Object.defineProperty(Navigator.prototype, 'webdriver', { get: () => false }));
+    const bodies = [];
+    context.on('request', (r) => { if (r.url().endsWith('/api/k')) bodies.push(r.postData() || ''); });
+    const page = await context.newPage();
+    await page.goto(f.base + '/');
+    await page.evaluate(() => {
+      const form = document.createElement('form');
+      form.setAttribute('data-kform', 'contact');
+      form.innerHTML = '<input name="email" value="jane@example.com"><button>Send</button>';
+      form.addEventListener('submit', (e) => e.preventDefault()); // a fetch-based form
+      document.getElementById('faq').append(form);
+    });
+    await page.click('form[data-kform] button');
+    await page.click('form[data-kform] button');
+    await page.waitForTimeout(500);
+    await page.goto('about:blank');
+    await page.waitForTimeout(500);
+    const forms = bodies.filter((b) => JSON.parse(b).e === 'form');
+    assert.equal(forms.length, 1, 'once per form and view');
+    assert.deepEqual(JSON.parse(forms[0]).d, { k: 'contact', s: 'faq' });
+    assert.ok(!bodies.some((b) => b.includes('jane')), 'no field value in any report');
+    const visits = [...f.store().daily.values()].find((d) => d.path === '*');
+    assert.deepEqual(visits.form, { contact: 1 });
+  } finally {
+    await browser.close();
+    await f.close();
+  }
+});
+
+test('consent.js: mount end keeps <body> children untouched before them, takes focus; Escape closes a reopened banner; focus moves on after an answer; the banner fits a 400% zoom viewport', { timeout: 120_000 }, async () => {
+  const f = await startFixture({ ids: 'consent' });
+  const browser = await chromium.launch();
+  try {
+    const context = await browser.newContext({ viewport: { width: 320, height: 256 } });
+    await context.route((u) => new URL(u).pathname === '/', async (route) => {
+      const res = await route.fetch();
+      await route.fulfill({ response: res, body: (await res.text()).replace('<script src="/assets/consent.js"', '<script data-mount="end" src="/assets/consent.js"') });
+    });
+    const page = await context.newPage();
+    await page.goto(f.base + '/');
+    await page.waitForSelector('.consent-banner');
+    assert.equal(await page.evaluate(() => document.body.lastElementChild.contains(document.querySelector('.consent-banner'))), true, 'last in <body>');
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Decline', 'the banner that asks takes focus');
+    const box = await page.evaluate(() => { const r = document.querySelector('.consent-banner').getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; });
+    assert.ok(box.top >= 0 && box.bottom <= 256, `inside the viewport: ${JSON.stringify(box)}`);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.consent-banner').count(), 1, 'Escape is not an answer');
+    await page.keyboard.press('Enter'); // Decline
+    assert.equal(await page.locator('.consent-banner').count(), 0);
+    assert.notEqual(await page.evaluate(() => document.activeElement === document.body), true, 'focus did not fall back to <body>');
+    await page.locator('[data-consent-open]').first().focus();
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.consent-banner');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.consent-banner').count(), 0, 'Escape closes the reopened banner');
+    assert.equal(await page.evaluate(() => document.activeElement?.hasAttribute('data-consent-open')), true, 'focus goes back');
+    assert.equal(await page.evaluate(() => localStorage.getItem('analytics-consent')), 'denied');
+  } finally {
+    await browser.close();
+    await f.close();
+  }
+});
+
+test('negative control: a collector that answers 500 to every report fails verify', { timeout: 240_000 }, async () => {
+  const f = await startFixture({ ids: 'consent', collectorStatus: 500 });
+  try {
+    const r = await verify(f.base, ['--pages', '/', '--mode', 'consent', '--settle', '0', '--path-probe', 'no']);
+    assert.equal(r.code, 1, r.out);
+    const c = r.report.results.find((x) => x.name === 'the collector receives reports');
+    assert.equal(c?.status, 'FAIL', r.out);
+    assert.match(c.detail, /answered 500/);
+  } finally {
+    await f.close();
+  }
+});
+
+test('negative control: a hydration error on the pages fails verify; the site\'s own console errors are only counted', { timeout: 240_000 }, async () => {
+  const f = await startFixture({ ids: 'consent', extra: '<script>console.error("Minified React error #418; visit https://react.dev/errors/418"); console.error("the site\'s own problem")</script>' });
+  try {
+    const r = await verify(f.base, ['--pages', '/', '--mode', 'consent', '--settle', '0', '--path-probe', 'no']);
+    assert.equal(r.code, 1, r.out);
+    const c = r.report.results.find((x) => x.name === 'no hydration error, CSP violation or error from the analytics scripts');
+    assert.equal(c?.status, 'FAIL', r.out);
+    assert.match(c.detail, /#418/);
+    assert.doesNotMatch(c.detail, /own problem/);
+  } finally {
+    await f.close();
+  }
+});
+
+test('negative control: consent.js injecting its <style> under style-src \'self\' fails verify; the stylesheet option passes', { timeout: 300_000 }, async () => {
+  const CSP = '<meta http-equiv="Content-Security-Policy" content="style-src \'self\'">';
+  const f = await startFixture({ ids: 'consent', extra: CSP });
+  try {
+    const r = await verify(f.base, ['--pages', '/', '--mode', 'consent', '--settle', '0', '--path-probe', 'no']);
+    const c = r.report.results.find((x) => x.name === 'no hydration error, CSP violation or error from the analytics scripts');
+    assert.equal(c?.status, 'FAIL', r.out);
+    assert.match(c.detail, /Content Security Policy/);
+  } finally {
+    await f.close();
+  }
+  const g = await startFixture({ ids: 'consent', extra: CSP + '<script>window.consentConfig = Object.assign(window.consentConfig || {}, { stylesheet: "/assets/consent.css" });</script>' });
+  try {
+    const r = await verify(g.base, ['--pages', '/', '--mode', 'consent', '--settle', '0', '--path-probe', 'no']);
+    const c = r.report.results.find((x) => x.name === 'no hydration error, CSP violation or error from the analytics scripts');
+    assert.equal(c?.status, 'PASS', r.out);
+    assert.equal(r.report.results.find((x) => x.name === 'the banner is shown')?.status, 'PASS', r.out);
+  } finally {
+    await g.close();
+  }
+});
+
+test('assets/consent.css holds exactly the rules consent.js injects', async () => {
+  const js = await readFile(new URL('../skills/sectionsight/assets/consent.js', import.meta.url), 'utf8');
+  const css = await readFile(new URL('../skills/sectionsight/assets/consent.css', import.meta.url), 'utf8');
+  const rules = js.match(/var CSS =([\s\S]*?);\n/)[1].match(/'([^']*)'/g).map((x) => x.slice(1, -1)).join('');
+  assert.equal(css.replace(/\/\*[\s\S]*?\*\//, '').replace(/\s*\n\s*/g, ''), rules);
+});

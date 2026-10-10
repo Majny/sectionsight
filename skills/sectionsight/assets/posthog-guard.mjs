@@ -505,7 +505,9 @@ export function posthogConfig(site, pathname) {
     capture_exceptions: site.exceptions === true,
     capture_heatmaps: true,
     capture_dead_clicks: true,
-    capture_performance: { web_vitals: true, network_timing: false },
+    // Page speed (Core Web Vitals) goes to PostHog only when the owner said
+    // yes to page speed (site.webVitals, the same answer as k.js data-vitals).
+    capture_performance: { web_vitals: site.webVitals === true, network_timing: false },
     disable_surveys: true,
     // Every event leaves when it is captured: nothing waits in a queue that a
     // withdrawal (or the reload after it) would still send.

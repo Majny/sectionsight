@@ -25,8 +25,13 @@ export const DEFAULT_RULES = {
   silence: { hours: 3, minExpected: 5 },
   /** (b) Visits so far today below `percent`% of the usual, when the usual is at least `minBaseline`. */
   low: { percent: 40, minBaseline: 20 },
+  /** (b2) High: visits so far today at least `factor`× the usual and at least `min`: a big link, or bots. */
+  high: { factor: 3, min: 30 },
   /** (c) A goal at 0 for `days` full days while its median is at least `minPerDay` a day. */
   goal: { days: 3, minPerDay: 1 },
+  /** (c2) Forms (k.js data-kform): at least `minSubmits` submits today and the `days`-1 days before,
+   *  and 0 of the goal with the same name, when that goal was reached in the 28 days before. */
+  forms: { days: 2, minSubmits: 3 },
   /** (d) Failed writes, or reports arriving without a write for `staleMinutes`. */
   writes: { staleMinutes: 30 },
   /** Deletion requests the collector dropped within the last `withinHours`. */
@@ -171,6 +176,19 @@ export async function checkHealth({ store, now = new Date(), timeZone = 'UTC', r
       } else evaluated.add('low');
     }
 
+    // (b2) High: visits so far today well above the same hours of earlier weeks.
+    if (R.high) {
+      if (!hourly) notes.push('high: no hourly counts in the last weeks yet');
+      else if (hour > 0) {
+        evaluated.add('high');
+        const sofar = await windowSum(today, hour, hour);
+        const usual = median(await Promise.all(weeks.map((d) => windowSum(d, hour, hour))));
+        if (sofar >= Math.max(R.high.min, R.high.factor * usual)) {
+          fail('high', 'high', 'info', `Visits today by ${String(hour).padStart(2, '0')}:00: ${sofar}, usually ${round(usual)} (median of the last ${weeks.length} ${weekdayOf(today)}s). A link from somewhere big, or bots: check the sources.`);
+        }
+      } else evaluated.add('high');
+    }
+
     // (c) Goals: a goal that stopped for N full days while it usually happens daily.
     if (R.goal) {
       evaluated.add('goal');
@@ -185,6 +203,25 @@ export async function checkHealth({ store, now = new Date(), timeZone = 'UTC', r
         const lately = recent.reduce((s, d) => s + num(d?.goal?.[g]), 0);
         if (lately === 0 && usual >= R.goal.minPerDay) {
           fail(`goal:${g}`, 'goal', 'warning', `Goal "${g}": 0 in the last ${n} days, usually ${round(usual)} a day (median of the 28 days before). A broken form or button?`);
+        }
+      }
+    }
+
+    // (c2) Forms: submitted, but the goal the server confirms never comes.
+    if (R.forms) {
+      evaluated.add('forms');
+      const n = Math.max(1, R.forms.days | 0);
+      const recent = [];
+      for (let i = 0; i < n; i++) recent.push(await visitsDoc(addDays(today, -i)));
+      const before = [];
+      for (let i = n; i < n + 28; i++) before.push(await visitsDoc(addDays(today, -i)));
+      const names = new Set(recent.flatMap((d) => Object.keys(d?.form ?? {})));
+      for (const f of [...names].sort()) {
+        if (f === 'other' || !before.some((d) => num(d?.goal?.[f]) > 0)) continue;
+        const sent = recent.reduce((s, d) => s + num(d?.form?.[f]), 0);
+        const done = recent.reduce((s, d) => s + num(d?.goal?.[f]), 0);
+        if (sent >= R.forms.minSubmits && done === 0) {
+          fail(`forms:${f}`, 'forms', 'critical', `Form "${f}": ${sent} submits since ${addDays(today, -(n - 1))}, none confirmed (goal "${f}" at 0). Is the form's backend failing?`);
         }
       }
     }
@@ -334,7 +371,7 @@ export async function checkHealth({ store, now = new Date(), timeZone = 'UTC', r
 
 function labelOf(key) {
   const [rule, name] = key.split(/:(.*)/s);
-  return { deletions: 'no deletion requests dropped recently', store: 'the store is readable', silence: 'visits are stored again', low: 'visits are back to usual', writes: 'writes succeed', notFound: '404s are back to usual', brokenLinks: 'no new broken links' }[rule] ?? (rule === 'goal' ? `goal "${name}" is being reached again` : rule === 'errors' ? `JavaScript error ${name} is under its thresholds` : rule);
+  return { deletions: 'no deletion requests dropped recently', store: 'the store is readable', silence: 'visits are stored again', low: 'visits are back to usual', high: 'visits are back to usual', writes: 'writes succeed', notFound: '404s are back to usual', brokenLinks: 'no new broken links' }[rule] ?? (rule === 'goal' ? `goal "${name}" is being reached again` : rule === 'forms' ? `form "${name}" submits are confirmed again` : rule === 'errors' ? `JavaScript error ${name} is under its thresholds` : rule);
 }
 
 const ICON = { critical: '🔴', warning: '🟠', info: '🔵' };
