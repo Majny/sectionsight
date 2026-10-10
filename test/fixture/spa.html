@@ -1,0 +1,17 @@
+<!doctype html><html lang="en"><head><title>Fixture SPA</title><!--HEAD--></head><body>
+<main id="app"></main>
+<script>
+  // A tiny client-side router: the URL changes first, the page a moment later,
+  // as React and other frameworks do.
+  const views = {
+    '/spa': '<section data-k="spa-one"><h2>First</h2><button id="go" type="button">Next page</button></section><section data-k="spa-two"><h2>Second</h2></section>',
+    '/spa/next': '<section data-k="next-one"><h2>Next</h2><p>Arrived without a reload.</p></section>',
+  };
+  const draw = () => { document.getElementById('app').innerHTML = views[location.pathname] || ''; };
+  draw();
+  document.addEventListener('click', (e) => {
+    if (e.target.id === 'go') { history.pushState({}, '', '/spa/next'); setTimeout(draw, 30); }
+  });
+  window.addEventListener('popstate', draw);
+</script>
+<!--FOOTER--></body></html>

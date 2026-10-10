@@ -1,0 +1,15 @@
+{
+  "_comment": "What test/ci.test.mjs runs the workflow's command lines with, against the fixture site.",
+  "pages": ["/", "/pricing"],
+  "private": ["/account/9f8e7d6c5b4a32100123"],
+  "mode": "consent",
+  "posthog": "/ingest",
+  "settle": 2000,
+  "expect": [
+    "footer a@href=^/privacy$",
+    { "selector": "a[data-kcta=whatsapp]", "attr": "href", "match": "^https://wa\\.me/420\\d+$", "pages": ["/"] }
+  ],
+  "indexable": ["/", "/pricing"],
+  "noindex": ["/thanks"],
+  "sitemap": true
+}

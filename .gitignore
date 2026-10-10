@@ -1,0 +1,5 @@
+node_modules
+*.log
+privacy-check.json
+.DS_Store
+.env*

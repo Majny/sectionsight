@@ -1,0 +1,23 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{font-family:system-ui;margin:0}main section,main>header{min-height:70vh;padding:24px;border-bottom:1px solid #ddd}footer{padding:24px}</style>
+<script>
+  window.consentConfig = { skip: '/^\\/account(\\/|$)/i', detailsHref: '/privacy' };
+</script>
+<script src="/assets/consent.js"></script>
+<script src="/assets/k.js" defer data-ids="consent" data-skip="/^\/account(\/|$)/i" data-allow-automation="1"></script>
+<script type="module">
+  import { startPostHog, stopPostHog, purgePostHog } from '/assets/posthog-guard.mjs';
+  const site = {
+    token: 'phc_fixture', hosts: [location.hostname], origin: location.origin, apiHost: '/ingest',
+    private: [/^\/account(\/|$)/i],
+    consented: () => window.analyticsConsent?.get() === 'granted',
+  };
+  const load = () => import('/vendor/posthog.mjs');
+  // Test switches (test/server.mjs): undo the guard's cleaning on purpose.
+  const unsafe = (ph) => { if (ph && window.__unsafeBeforeSend) ph.set_config({ before_send: (e) => e }); };
+  const begin = () => (site.consented() ? startPostHog(site, load).then(unsafe) : purgePostHog());
+  if (window.analyticsConsent) begin(); else window.addEventListener('load', begin, { once: true });
+  window.addEventListener('consent:changed', (e) => { if (e.detail === 'granted') startPostHog(site, load).then(unsafe); });
+  Object.assign(window.consentConfig, { onWithdraw: () => stopPostHog(), onDecline: () => purgePostHog() });
+</script>

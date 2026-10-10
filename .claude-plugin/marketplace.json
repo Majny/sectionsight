@@ -1,0 +1,14 @@
+{
+  "name": "kubadvorak",
+  "description": "Agent skills by Jakub Dvořák: privacy-first website analytics that show what visitors read, with a check that proves it.",
+  "owner": {
+    "name": "Jakub Dvořák",
+    "url": "https://kubadvorak.com"
+  },
+  "plugins": [
+    {
+      "name": "sectionsight",
+      "source": "./"
+    }
+  ]
+}

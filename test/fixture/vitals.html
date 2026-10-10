@@ -1,0 +1,7 @@
+<!doctype html><html lang="en"><head><title>Fixture vitals</title><!--HEAD--></head><body>
+<main>
+  <section data-k="hero-image"><h2>Look</h2><img src="/img/hero.svg" width="1000" height="560" alt="A green field"></section>
+  <section data-k="slow-form"><h2>Slow</h2><p>A button whose handler blocks the main thread.</p>
+    <button type="button" id="slow" onclick="var t = performance.now(); while (performance.now() - t < 600) {}">Calculate</button></section>
+</main>
+<!--FOOTER--></body></html>
