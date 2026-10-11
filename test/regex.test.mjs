@@ -6,6 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { runInThisContext } from 'node:vm';
 import { createCollector, memoryStore } from '../skills/sectionsight/assets/collector.mjs';
 import { isPrivate, startPostHog } from '../skills/sectionsight/assets/posthog-guard.mjs';
 
@@ -15,7 +16,7 @@ for (const f of ['k.js', 'consent.js', 'collector.mjs', 'posthog-guard.mjs']) {
   const src = await readFile(new URL(f, dir), 'utf8');
   const block = /\/\/ <toRegExp>[^\n]*\n([\s\S]*?)\/\/ <\/toRegExp>/.exec(src);
   assert.ok(block, `${f} marks its toRegExp block`);
-  parsers[f] = new Function(`${block[1].replace(/\bexport /g, '')}; return toRegExps;`)();
+  parsers[f] = runInThisContext(`(() => { ${block[1].replace(/\bexport /g, '')}; return toRegExps; })()`);
 }
 
 // [rule, path, expected]: true/false = whether the path is private; 'throws'.

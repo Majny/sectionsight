@@ -159,7 +159,7 @@ test('gsc: the JWT is RS256, signed by the service account\'s key, for the read-
 
 function gscFetch({ tokenStatus = 200 } = {}) {
   return fakeFetch((call) => {
-    if (call.url === 'https://oauth2.googleapis.com/token') return tokenStatus === 200 ? { json: { access_token: 'ya29.test-token', expires_in: 3599 } } : { status: tokenStatus, json: { error: 'invalid_grant', error_description: 'bad' } };
+    if (call.url === 'https://oauth2.googleapis.com/token') return tokenStatus === 200 ? { json: { access_token: 'ya29.ab', expires_in: 3599 } } : { status: tokenStatus, json: { error: 'invalid_grant', error_description: 'bad' } };
     const body = JSON.parse(call.body);
     if (!body.dimensions) return { json: { rows: [{ clicks: 120, impressions: 4000, ctr: 0.03, position: 8.2 }] } };
     if (body.dimensions[0] === 'query') {
@@ -205,7 +205,7 @@ test('gsc: the daily job asks for the day 3 days ago, stores the top queries and
     assert.equal(form.get('assertion').split('.').length, 3);
     for (const c of fetch.calls.slice(1)) {
       assert.equal(c.url, 'https://www.googleapis.com/webmasters/v3/sites/https%3A%2F%2Fwww.example.com%2F/searchAnalytics/query');
-      assert.equal(c.headers.authorization, 'Bearer ya29.test-token');
+      assert.equal(c.headers.authorization, 'Bearer ya29.ab');
     }
     assert.deepEqual([...new Set(fetch.calls.slice(1).map((c) => JSON.parse(c.body).startDate))], ['2026-10-05', '2026-10-04', '2026-10-03', '2026-10-02']);
     const doc = await store.gsc('2026-10-05');

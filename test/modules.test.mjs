@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { readFile, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { runInThisContext } from 'node:vm';
 import {
   createCollector, memoryStore, fileStore, mongoStore, sqlStore, analyticsEngineStore, parseBeacon,
   scrubError, errFile, errFingerprint, p75FromBuckets, CWV_BUCKETS,
@@ -18,12 +19,12 @@ import { fakeMongo, sqliteQuery } from './fakes.mjs';
 
 const kjs = await readFile(new URL('../skills/sectionsight/assets/k.js', import.meta.url), 'utf8');
 const blockOf = (name) => {
-  const m = new RegExp(`// <${name}>[^\\n]*\\n([\\s\\S]*?)// </${name}>`).exec(kjs);
+  const m = kjs.match(new RegExp(`// <${name}>[^\\n]*\\n([\\s\\S]*?)// </${name}>`));
   assert.ok(m, `k.js marks its ${name} block`);
   return m[1];
 };
-const kScrub = new Function(`${blockOf('looksPersonal')}${blockOf('scrubError')}; return scrubError;`)();
-const kCwv = new Function(`${/var CWV = [^\n]*/.exec(kjs)[0]}; return CWV;`)();
+const kScrub = runInThisContext(`(() => { ${blockOf('looksPersonal')}${blockOf('scrubError')}; return scrubError; })()`);
+const kCwv = runInThisContext(`(() => { ${/var CWV = [^\n]*/.exec(kjs)[0]}; return CWV; })()`);
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
 const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
@@ -294,7 +295,7 @@ test('health: a first-ever err.(other) flood alerts; a spike over a usual day of
 test('errFile in k.js and the collector: a decoded name that looks personal is "(hidden)", a hash is *', () => {
   const src = /\n {2}function errFile\(src\) \{[\s\S]*?\n {2}\}\n/.exec(kjs);
   assert.ok(src, 'k.js errFile');
-  const kErrFile = new Function('location', `${blockOf('looksPersonal')}${src[0]}; return errFile;`)({ href: 'https://example.com/', origin: 'https://example.com' });
+  const kErrFile = runInThisContext(`((location) => { ${blockOf('looksPersonal')}${src[0]}; return errFile; })`)({ href: 'https://example.com/', origin: 'https://example.com' });
   assert.equal(kErrFile('https://example.com/static/chunk-jane.doe%40example.com.js'), '(hidden)');
   assert.equal(kErrFile('https://example.com/static/chunk-jane.doe\uff20example.com.js'), '(hidden)');
   assert.equal(kErrFile('https://example.com/static/chunk-a8f3e9c1d2b4f7e6.js?v=2'), 'chunk-*.js');

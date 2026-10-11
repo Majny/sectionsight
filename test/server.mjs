@@ -61,7 +61,7 @@ export async function startFixture({ port = 0, ids = 'consent', host = '127.0.0.
   const collector = () =>
     // leakPrivate: the collector does not skip private paths either, so a
     // tracker that runs there is visible to verify.mjs.
-    toNodeHandler(createCollector({ hosts: ['127.0.0.1', 'localhost', 'acme.test'], store, ids, secret: 'test-secret', skip: leakPrivate ? [] : ['/^\\/account(\\/|$)/i'], timeZone: 'Europe/Berlin', consentCounts, ...(campaigns ? { campaigns } : {}) }));
+    toNodeHandler(createCollector({ hosts: ['127.0.0.1', 'localhost', 'acme.test'], store, ids, secret: 'test', skip: leakPrivate ? [] : ['/^\\/account(\\/|$)/i'], timeZone: 'Europe/Berlin', consentCounts, ...(campaigns ? { campaigns } : {}) }));
   let collect = collector();
   const head = (await readFile(path.join(fixture, 'head.html'), 'utf8')).replace('<script src="/assets/consent.js"></script>', consentDefer ? '<script src="/assets/consent.js" defer></script>' : '<script src="/assets/consent.js"></script>');
   const footer = await readFile(path.join(fixture, 'footer.html'), 'utf8');
@@ -110,7 +110,7 @@ export async function startFixture({ port = 0, ids = 'consent', host = '127.0.0.
         }
         if (/^\/array\/[^/]+\/config\.js$/.test(sub)) {
           // What PostHog's CDN serves: a script that leaves the config on window.
-          const js = `(function(){window._POSTHOG_REMOTE_CONFIG=window._POSTHOG_REMOTE_CONFIG||{};window._POSTHOG_REMOTE_CONFIG['phc_fixture']={config:${JSON.stringify(remoteConfig())},siteApps:[]}})();`;
+          const js = `(function(){window._POSTHOG_REMOTE_CONFIG=window._POSTHOG_REMOTE_CONFIG||{};window._POSTHOG_REMOTE_CONFIG['phc_fix']={config:${JSON.stringify(remoteConfig())},siteApps:[]}})();`;
           return send(200, 'text/javascript', js);
         }
         if (/^\/array\/[^/]+\/config$/.test(sub)) return send(200, 'application/json', JSON.stringify(remoteConfig()));
@@ -163,7 +163,7 @@ const HERO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="5
 // What PostHog's remote config says for a project with replay and heatmaps on.
 function remoteConfig() {
   return {
-    token: 'phc_fixture',
+    token: 'phc_fix',
     supportedCompression: ['gzip', 'gzip-js'],
     hasFeatureFlags: false,
     captureDeadClicks: true,

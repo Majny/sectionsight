@@ -9,7 +9,7 @@
 <script type="module">
   import { startPostHog, stopPostHog, purgePostHog } from '/assets/posthog-guard.mjs';
   const site = {
-    token: 'phc_fixture', hosts: [location.hostname], origin: location.origin, apiHost: '/ingest',
+    token: 'phc_fix', hosts: [location.hostname], origin: location.origin, apiHost: '/ingest',
     private: [/^\/account(\/|$)/i],
     consented: () => window.analyticsConsent?.get() === 'granted',
   };

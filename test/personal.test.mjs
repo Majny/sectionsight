@@ -6,6 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { runInThisContext } from 'node:vm';
 import { looksPersonal as collectorRule } from '../skills/sectionsight/assets/collector.mjs';
 import { looksPersonal as guardRule, cleanUrl } from '../skills/sectionsight/assets/posthog-guard.mjs';
 
@@ -13,7 +14,7 @@ import { looksPersonal as guardRule, cleanUrl } from '../skills/sectionsight/ass
 const kjs = await readFile(new URL('../skills/sectionsight/assets/k.js', import.meta.url), 'utf8');
 const block = /\/\/ <looksPersonal>[^\n]*\n([\s\S]*?)\/\/ <\/looksPersonal>/.exec(kjs);
 assert.ok(block, 'k.js marks its looksPersonal block');
-const trackerRule = new Function(`${block[1]}; return looksPersonal;`)();
+const trackerRule = runInThisContext(`(() => { ${block[1]}; return looksPersonal; })()`);
 
 const RULES = { 'k.js': trackerRule, 'collector.mjs': collectorRule, 'posthog-guard.mjs': guardRule };
 
