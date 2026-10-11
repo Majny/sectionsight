@@ -3,7 +3,7 @@
 An agent skill that sets up website analytics that respect visitors, and
 proves it in a real browser.
 
-![The browser check, verify.mjs, passing 25 checks against the test fixture](docs/verify.png)
+![The browser check, verify.mjs, passing against the test fixture](docs/verify.png)
 
 Ask your coding agent to *"add privacy-first analytics to this site"*. It
 then does this:
@@ -171,7 +171,7 @@ dependencies are pinned to exact versions in `package.json`.
 
 ```bash
 npm install && npx playwright install chromium
-npm test   # 157 tests (the real-Mongo one skips without SECTIONSIGHT_MONGO_MODULES): unit tests, and browser tests against test/fixture with real posthog-js 1.438.3
+npm test   # 165 tests (the real-Mongo one skips without SECTIONSIGHT_MONGO_MODULES): unit tests, and browser tests against test/fixture with real posthog-js 1.438.3
 # mongoStore against a real mongod too (mongodb-memory-server, installed elsewhere):
 SECTIONSIGHT_MONGO_MODULES=/path/with/node_modules node --test test/mongo.test.mjs
 ```
