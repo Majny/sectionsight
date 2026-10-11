@@ -31,8 +31,9 @@ test('consent mode with PostHog: every check passes, and the rows make Slack lin
   try {
     // Under a production-like name: posthog-js turns some capture off on localhost.
     // /Account/settings: the private-path rule is "/…/i" in all four places.
-    const r = await verify(f.named, ['--resolve', 'acme.test', '--pages', '/,/pricing', '--private', '/account/9f8e7d6c5b4a32100123,/Account/settings', '--mode', 'consent', '--posthog', '/ingest', '--rows-url', '/__store']);
+    const r = await verify(f.named, ['--resolve', 'acme.test', '--pages', '/,/pricing', '--private', '/account/9f8e7d6c5b4a32100123,/Account/settings', '--mode', 'consent', '--posthog', '/ingest', '--rows-url', '/__store', '--privacy-page', '/privacy']);
     assert.equal(r.code, 0, r.out);
+    assert.equal(r.report.results.find((x) => x.name === 'privacy page /privacy names every recipient')?.status, 'PASS', r.out);
     for (const name of ['delete my visit data: the request carries only the visit id', 'delete my visit data: consent is withdrawn too', "delete my visit data: the visit's rows are gone"]) {
       assert.equal(r.report.results.find((x) => x.name === name)?.status, 'PASS', name + '\n' + r.out);
     }
@@ -413,7 +414,8 @@ test('broken things: CTA targets, indexing, robots.txt and the sitemap fail when
   try {
     const r = await verify(f.base, ['--pages', '/,/pricing', '--mode', 'consent', '--banner', 'no', '--settle', '0', '--path-probe', 'no', '--no-write',
       '--expect', 'a[data-kcta=whatsapp]@href=^https://wa\\.me/1\\d+$', '--expect', 'a[data-kcta=missing]',
-      '--indexable', '/,/pricing,/privacy', '--noindex', '/thanks', '--sitemap']);
+      '--indexable', '/,/pricing,/privacy', '--noindex', '/thanks', '--sitemap',
+      '--privacy-page', '/privacy', '--processors', 'Umami,Cloudflare=cloudflare.com']);
     assert.equal(r.code, 1, r.out);
     const by = (name) => r.report.results.find((x) => x.name === name);
     assert.equal(by('expect a[data-kcta=whatsapp]@href=^https://wa\\.me/1\\d+$')?.status, 'FAIL', r.out);
@@ -431,6 +433,10 @@ test('broken things: CTA targets, indexing, robots.txt and the sitemap fail when
     const nf = r.report.results.find((x) => x.name.startsWith('404 page'));
     assert.equal(nf?.status, 'SKIP', 'no data-k404 on this 404 page: ' + r.out);
     assert.match(nf.detail, /data-k404/);
+    // The privacy text names PostHog but not Umami, a processor the browser never sees.
+    const pp = by('privacy page /privacy names every recipient');
+    assert.equal(pp?.status, 'FAIL', r.out);
+    assert.match(pp.detail, /not named: Umami \(--processors\), Cloudflare \(--processors\)\./);
   } finally {
     await f.close();
   }

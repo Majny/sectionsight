@@ -42,6 +42,9 @@
  *     robots.txt), --sitemap.
  * 12. Nothing broken by these scripts: no uncaught error or CSP violation
  *     from k.js, consent.js or the PostHog guard, no hydration error.
+ * 13. --privacy-page: the privacy text names every recipient: PostHog (with
+ *     --posthog), each of --processors ("Umami", or "Google Fonts=fonts.gstatic.com"
+ *     to cover a host), and every other host the browser sent a request to.
  * Throughout: the collector answers every report without an error.
  *
  * It sees what the browser sends, not what a server forwards afterwards: a
@@ -73,7 +76,8 @@ import path from 'node:path';
 const FLAGS = new Set(['url', 'pages', 'private', 'mode', 'banner', 'collector', 'posthog', 'accept', 'decline', 'settings',
   'settings-page', 'allow-storage', 'allow-cookies', 'allow-hosts', 'resolve', 'consent-key', 'path-probe', 'settle',
   'no-write', 'headed', 'report', 'json', 'github', 'fail-on-skip', 'config',
-  'expect', 'indexable', 'noindex', 'sitemap', 'sitemap-host', 'delete-button', 'rows-url', 'preview', 'preview-writes', 'errors', 'consent-counts']);
+  'expect', 'indexable', 'noindex', 'sitemap', 'sitemap-host', 'delete-button', 'rows-url', 'preview', 'preview-writes', 'errors', 'consent-counts',
+  'privacy-page', 'processors']);
 const REPEATED = new Set(['expect']);
 const cli = {};
 for (let i = 2; i < process.argv.length; i++) {
@@ -131,7 +135,7 @@ if (!BASE) {
     '  [--settle 8000] [--no-write] [--headed] [--json privacy-check.json] [--github] [--fail-on-skip]\n' +
     '  [--config privacy-check.config.json] [--expect \'a[data-kcta=x]@href=^https://\']... [--indexable /,/a] [--noindex /thanks]\n' +
     '  [--sitemap [/sitemap.xml]] [--sitemap-host www.example.com] [--delete-button "[data-consent-delete]"] [--rows-url /__rows] [--errors] [--consent-counts]\n' +
-    '  [--preview] [--preview-writes]');
+    '  [--preview] [--preview-writes] [--privacy-page /privacy] [--processors "Umami,Google Fonts=fonts.gstatic.com"]');
   process.exit(2);
 }
 const PAGES = csv(args.pages || '/');
@@ -225,6 +229,14 @@ const INDEXABLE = csv(args.indexable);
 const NOINDEX = csv(args.noindex);
 const SITEMAP = !args.sitemap || args.sitemap === 'no' ? '' : args.sitemap;
 const SITEMAP_HOST = args['sitemap-host'] || new URL(BASE).host;
+// Check 13. A processor the browser never talks to (a server-side forward to
+// Umami, say) is invisible here: the owner lists it. "Name=host" also covers
+// requests to that host (or a subdomain of it).
+const PRIVACY_PAGE = args['privacy-page'] || '';
+const PROCESSORS = csv(args.processors).map((x) => {
+  const [name, host] = x.split('=').map((s) => s.trim());
+  return { name, host: (host || '').toLowerCase() };
+});
 // A path no site has, visited with the probe query: the 404 page's report.
 const MISSING = '/sectionsight-check-missing-page';
 
@@ -417,6 +429,7 @@ function record(context, log) {
     try {
       host = new URL(req.url()).host;
     } catch {}
+    if (host) SEEN_HOSTS.add(host.toLowerCase());
     const entry = { kind, host, at: Date.now(), url: req.url(), method: req.method(), body, unread: kind !== 'other' && req.method() === 'POST' && !body, page: req.frame()?.page() ?? null };
     log.push(entry);
     if (kind === 'collector') answered.set(req, entry);
@@ -429,6 +442,8 @@ function record(context, log) {
   });
 }
 const answered = new WeakMap();
+// Every host any page of this run sent a request to (check 13).
+const SEEN_HOSTS = new Set();
 
 // A browser's ordinary user agent: collectors drop "HeadlessChrome" as a bot.
 let USER_AGENT = '';
@@ -978,7 +993,7 @@ try {
   // 11. Broken things: CTA targets, indexing, the sitemap. Read-only, and run
   // in a context whose reports are answered in the browser, so even without
   // --no-write these visits store nothing.
-  if (EXPECT.length || INDEXABLE.length || NOINDEX.length || SITEMAP) {
+  if (EXPECT.length || INDEXABLE.length || NOINDEX.length || SITEMAP || PRIVACY_PAGE) {
     const context = await newContext(browser, { silent: true });
     const page = await context.newPage();
     // Same-origin requests from a page of the site: they see every header,
@@ -1121,6 +1136,37 @@ try {
         }
         if (!locs.length) problems.push('no <loc> in it');
         check(name, problems.length === 0, (problems.length ? problems.slice(0, 5).join(' | ') + (problems.length > 5 ? ` (+${problems.length - 5})` : '') : `${locs.length} URLs, ${sample.length} fetched`) + movedNote);
+      }
+    }
+
+    // 13. The privacy text names who gets data: PostHog, the listed
+    // processors, and every other host the pages sent a request to (a host is
+    // named by its domain's own label: eu.i.posthog.com → "posthog").
+    if (PRIVACY_PAGE) {
+      const name = `privacy page ${PRIVACY_PAGE} names every recipient`;
+      const res = await page.goto(BASE + PRIVACY_PAGE, { waitUntil: 'load' }).catch(() => null);
+      if (!res || res.status() >= 400) check(name, false, `${PRIVACY_PAGE} answered ${res ? res.status() : 'nothing'}`);
+      else {
+        const text = (await page.evaluate(() => document.body?.innerText ?? '').catch(() => '')).toLowerCase();
+        const own = new URL(BASE).host.toLowerCase();
+        const covered = (h) => PROCESSORS.some((x) => x.host && (h === x.host || h.endsWith('.' + x.host)));
+        const label = (h) => {
+          const parts = h.replace(/:\d+$/, '').split('.');
+          // example.co.uk → "example"
+          const i = parts.length >= 3 && parts.at(-1).length === 2 && parts.at(-2).length <= 3 ? parts.length - 3 : parts.length - 2;
+          return parts[Math.max(0, i)];
+        };
+        const wanted = [
+          ...(POSTHOG ? [{ name: 'PostHog', why: '--posthog' }] : []),
+          ...PROCESSORS.map((x) => ({ name: x.name, why: '--processors' })),
+          ...[...SEEN_HOSTS].filter((h) => h !== own && !covered(h) && !/(^|\.)posthog\.com$/.test(h) && !RESOLVE.includes(h.replace(/:\d+$/, '')))
+            .map((h) => ({ name: label(h), why: `requests to ${h}` })),
+        ];
+        const seen = new Set();
+        const missing = wanted.filter((w) => w.name && !seen.has(w.name.toLowerCase()) && seen.add(w.name.toLowerCase()) && !text.includes(w.name.toLowerCase()));
+        check(name, missing.length === 0, missing.length
+          ? `not named: ${missing.map((m) => `${m.name} (${m.why})`).join(', ')}. Name each recipient and what it receives (references/privacy-policy.md), or cover a host with --processors "Name=host"`
+          : seen.size ? `names ${[...seen].join(', ')}` : 'no recipient besides the site itself');
       }
     }
     await closeContext(context);

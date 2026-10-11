@@ -250,7 +250,9 @@ consent.
 
 Add the owner's answers about what must never break: `--expect` for each
 CTA (`'a[data-kcta=signup]@href=^/signup$'`), `--indexable` and
-`--noindex` for the pages, and `--sitemap`. These checks are read-only. A
+`--noindex` for the pages, `--sitemap`, and `--privacy-page` with
+`--processors` for every recipient the browser does not see (a server that
+forwards to Umami). These checks are read-only. A
 command-line `--expect` is checked on every `--pages` page; for a CTA that
 lives on some pages only, use the config file's `expect` entries with their
 own `pages` (`references/verify.md`).

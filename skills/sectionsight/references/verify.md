@@ -156,6 +156,15 @@ visits are answered in the browser, so they never store a report):
   hydration error (React #418/#423/#425: a node put into a framework's
   `<body>` before it hydrates; use consent.js `mount: 'end'`). The site's
   own console errors are counted in the detail, not judged.
+- `--privacy-page /privacy`: the privacy text names every recipient:
+  PostHog (with `--posthog`), each of `--processors` (the ones the browser
+  never talks to, such as a server that forwards to Umami), and every other
+  host the pages sent a request to, by its domain's own label
+  (`eu.i.posthog.com` → "posthog", `cdn.jsdelivr.net` → "jsdelivr").
+  `--processors "Google Fonts=fonts.gstatic.com"` names a host's company
+  when the label is not what the text says. Read-only. It checks that a
+  name is there, not that the text is right, and not that a DPA is signed:
+  that stays on the owner's list.
 - **The collector's answers**: "the collector receives reports" fails when
   any report is answered with an HTTP error (a skip rule that does not
   parse makes the Cloudflare recipe answer 500 to everything).
@@ -205,6 +214,8 @@ the command line of the local run.
 | `noindex` | `--noindex` | `["/thanks"]` |
 | `sitemap` | `--sitemap` | `true`, or a path |
 | `sitemapHost` | `--sitemap-host` | `"www.example.com"` |
+| `privacyPage` | `--privacy-page` | `"/privacy"` |
+| `processors` | `--processors` | `["Umami", "Google Fonts=fonts.gstatic.com"]` |
 | `json` | `--json` | `"privacy-check.json"` |
 
 `assets/ci/privacy-check.config.example.json` is a starting point.
@@ -247,6 +258,7 @@ the command line of the local run.
 | expect … | a CTA pointing to an old number or a staging URL, a component that dropped `data-kcta`, a link renamed | fix the link; never loosen the regex to make it pass |
 | indexable: … | a `noindex` left from staging (meta or `X-Robots-Tag` set by the host for preview domains), a broad `Disallow`, a redirect | remove it in production; list the final URL |
 | noindex: … | the page only blocked in robots.txt, or the tag missing | `<meta name="robots" content="noindex">` or the header, and let crawlers fetch it |
+| privacy page … names every recipient | a vendor added to the site but not to the privacy text, PostHog turned on later, a font or script CDN nobody listed | name it and what it receives (`privacy-policy.md`), or self-host the file |
 | sitemap: … | the sitemap generated with the staging host, removed pages still listed, `http` vs `https` or `www` mismatch | regenerate from the production host, list only live canonical URLs |
 
 **Never make a check pass by weakening it.** Fix the site, or, for a cookie

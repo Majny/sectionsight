@@ -18,5 +18,7 @@
   "indexable": ["/", "/pricing"],
   "noindex": ["/thanks"],
   "sitemap": true,
-  "sitemapHost": "www.example.com"
+  "sitemapHost": "www.example.com",
+  "privacyPage": "/privacy",
+  "processors": []
 }

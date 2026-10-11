@@ -69,8 +69,8 @@ then does this:
     the Accept;
   - and, read-only, the things that quietly break: CTA links pointing
     where they should, pages that must (or must not) be indexable
-    (meta robots, `X-Robots-Tag`, robots.txt), and a sitemap whose URLs
-    answer;
+    (meta robots, `X-Robots-Tag`, robots.txt), a sitemap whose URLs
+    answer, and a privacy page that names every service the data goes to;
 - **keeps checking** in CI: a GitHub Actions workflow runs the same check on
   every pull request (blocking or warning, as the owner chooses) and every
   night against production, without writing data, from one shared config
@@ -177,7 +177,7 @@ SECTIONSIGHT_MONGO_MODULES=/path/with/node_modules node --test test/mongo.test.m
 ```
 
 The browser tests run `verify.mjs` against a fixture site, under a
-production-like name, in all three consent models. Fourteen negative controls
+production-like name, in all three consent models. Fifteen negative controls
 prove that the checks fail when they should:
 - a careless page (cookies, storage, PostHog before consent, leaked e-mail);
 - a tracker left running on a private page;
@@ -194,7 +194,8 @@ prove that the checks fail when they should:
 - consent counts that carry the visit id;
 - a collector that answers 500 to every report;
 - a hydration error on the page;
-- a banner style blocked by the page's Content Security Policy.
+- a banner style blocked by the page's Content Security Policy;
+- a privacy page that does not name a processor.
 
 ## Not legal advice
 
