@@ -3,7 +3,7 @@
 An agent skill that sets up website analytics that respect visitors, and
 proves it in a real browser.
 
-![The browser check, verify.mjs, passing against the test fixture](docs/verify.png)
+![Per-visit lines and the weekly digest in Slack (example data, real output of visits.mjs and digest.mjs)](docs/reports-slack.png)
 
 Ask your coding agent to *"add privacy-first analytics to this site"*. It
 then does this:
@@ -80,6 +80,10 @@ then does this:
 🎯 🇨🇿 · mobile · google · / 0:42 ↓75% (pricing 0:20 · intro 0:12) → /signup 1:10 → 🎯 signup · ▶ replay
 ```
 
+No Slack? The same reports go out by e-mail as plain text:
+
+![The same visits and weekly digest as e-mails (example data, real output of visitText and weeklyDigest)](docs/reports-email.png)
+
 ## Why
 
 Cookieless analytics tools count page views. None of the ~80 open-source
@@ -102,6 +106,10 @@ its own browser check.
 The pitfalls found in adversarial reviews of this code, each with its
 fix, are in
 [`references/gotchas.md`](skills/sectionsight/references/gotchas.md).
+
+The browser check, run against the test fixture:
+
+![The browser check, verify.mjs, passing against the test fixture](docs/verify.png)
 
 ## What the check does not prove
 
