@@ -1,6 +1,6 @@
 {
   "name": "sectionsight",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Sets up cookieless, privacy-first website analytics (time per page section, consent banner, PostHog replay only after consent, Slack or e-mail reports, health alerts) and proves the privacy claims with a headless-browser check.",
   "author": {
     "name": "Jakub Dvořák",

@@ -1,5 +1,5 @@
 {
   "name": "sectionsight",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Cookieless, privacy-first website analytics (time per page section, consent banner, Slack or e-mail reports) with a headless-browser check that proves the privacy claims."
 }
