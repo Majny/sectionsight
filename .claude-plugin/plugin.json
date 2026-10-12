@@ -2,7 +2,7 @@
   "name": "sectionsight",
   "displayName": "Sectionsight",
   "description": "Website analytics that show what visitors read (time per page section) with no cookies, a consent banner designed around EDPB and CNIL guidance, PostHog replay only with consent, Slack lines per notable visit, a weekly digest, health alerts, opt-in JavaScript errors and Core Web Vitals, AI referral, crawler and Search Console visibility, and a browser check that proves it.",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "author": { "name": "Jakub Dvořák", "url": "https://kubadvorak.com" },
   "license": "MIT",
   "keywords": ["analytics", "privacy", "gdpr", "consent", "cookieless", "posthog", "slack", "web-analytics"]

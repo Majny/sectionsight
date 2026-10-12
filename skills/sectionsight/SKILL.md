@@ -5,7 +5,7 @@ license: MIT
 compatibility: The reference code needs a server or function that can take a same-origin POST (Node 18+, Workers, Deno, Bun). verify.mjs needs Node 20+, Playwright and Chromium (network access to install them).
 metadata:
   author: Jakub Dvořák (kubadvorak.com)
-  version: "0.4.0"
+  version: "1.0.0"
 ---
 
 # Privacy-first analytics
