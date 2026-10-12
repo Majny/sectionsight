@@ -134,7 +134,15 @@ The browser check, run against the test fixture:
 /plugin install sectionsight@kubadvorak
 ```
 
-**Other agents (Codex, Cursor, Copilot, Gemini CLI…).** The skill follows the
+**Gemini CLI**
+
+```text
+gemini extensions install https://github.com/Majny/sectionsight
+```
+
+**Codex** reads the same repository as a plugin (`.codex-plugin/plugin.json`).
+
+**Other agents (Cursor, Copilot…).** The skill follows the
 open [Agent Skills](https://agentskills.io) format. Copy
 `skills/sectionsight/` to wherever your agent loads skills from.
 
